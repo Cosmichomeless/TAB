@@ -1,627 +1,481 @@
 # TAB
 
-## Project Overview
+> Offline-first native iOS expense splitting application with local persistence, optimistic updates, synchronization, and explicit conflict handling.
 
-TAB is an offline-first expense splitting application designed for groups such as:
+## Overview
 
-- Trips.
-- Flatmates.
-- Events.
-- Groups of friends.
+TAB is a native iOS bill-splitting application designed around an offline-first architecture.
 
-The application allows users to create shared expenses even when they have no internet connection.
+Users can create groups, add shared expenses, and calculate balances even without an internet connection.
 
-When connectivity returns, changes should synchronize automatically between devices.
+When connectivity becomes available again, local changes should synchronize with the backend and eventually reach other devices.
 
-The main objective of the project is to explore offline-first architecture and distributed data synchronization.
+The main purpose of TAB is not to build another Splitwise clone.
 
----
+The project exists to explore:
 
-# Main Goal
+- Offline-first architecture
+- Local databases
+- Synchronization
+- Optimistic UI
+- Conflict resolution
+- Distributed state
+- Data consistency
+- Swift Concurrency
+- Networking
 
-Users should be able to create a group such as:
+## Product Example
 
-LISBON TRIP
+```text
+Lisbon Trip
 
-Members:
-
-- Ana
-- Bruno
-- Marta
-- David
-
-Expenses:
-
-Dinner
-186.40 €
-
-Taxi
-22.80 €
-
-Airbnb
-640.00 €
-
-The application calculates who owes money to whom.
-
----
-
-# Key Technical Idea
-
-The local database should be the primary application data source.
-
-NOT:
-
-UI
-    ↓
-API
-    ↓
-DATABASE
-
-Instead:
-
-UI
-    ↓
-LOCAL DATABASE
-    ↓
-SYNC ENGINE
-    ↓
-REMOTE DATABASE
-
-This allows the application to work completely offline.
-
----
-
-# Technology Stack
-
-## Mobile
-
-- React Native
-- Expo
-- TypeScript
-
-## Local Database
-
-- SQLite
-
-## ORM
-
-- Drizzle ORM
-
-## Synchronization
-
-- PowerSync
-
-## Backend
-
-- Supabase
-
-## State
-
-Zustand may be used for temporary UI state.
-
-Persistent domain data should live primarily in the database.
-
-## Styling
-
-- NativeWind
-
----
-
-# Technical Objectives
-
-This project should demonstrate:
-
-- Offline-first architecture.
-- Local databases.
-- SQL.
-- Synchronization.
-- Optimistic UI.
-- Conflict handling.
-- Authentication.
-- Realtime data.
-- Data modeling.
-- Distributed state.
-- Network failure handling.
-
----
-
-# Core Principle
-
-The app must remain useful without internet.
-
-Example:
-
-User enters airplane mode.
-
-    ↓
-
-Creates expense.
-
-    ↓
-
-Expense saved locally.
-
-    ↓
-
-UI immediately updates.
-
-    ↓
-
-Internet returns.
-
-    ↓
-
-Synchronization begins.
-
-    ↓
-
-Other group members receive change.
-
----
-
-# Main Entities
-
-## User
-
-User {
-    id
-    name
-    email
-}
-
-## Group
-
-Group {
-    id
-    name
-    createdBy
-    createdAt
-}
-
-## GroupMember
-
-GroupMember {
-    id
-    groupId
-    userId
-}
-
-## Expense
-
-Expense {
-    id
-    groupId
-    paidBy
-    title
-    amount
-    currency
-    createdAt
-    updatedAt
-}
-
-## ExpenseSplit
-
-ExpenseSplit {
-    id
-    expenseId
-    userId
-    amount
-}
-
----
-
-# Example
-
-Expense:
-
-Dinner
-€100
-
-Paid by:
-David
-
-Split between:
-
-David
-Ana
-Bruno
-Marta
-
-Each owes:
-
-€25
-
-Balances become:
-
-Ana owes David €25
-Bruno owes David €25
-Marta owes David €25
-
----
-
-# Balance Calculation
-
-Balances should be derived from expenses rather than stored as authoritative values whenever possible.
-
-Example:
+Members
+├── David
+├── Ana
+├── Marta
+└── Bruno
 
 Expenses
+├── Airbnb      €640
+├── Dinner      €186.40
+└── Taxi         €22.80
+```
+
+TAB should determine each participant's net balance and suggest how debts can be settled.
+
+## Core Principle
+
+The application should not depend on the network for normal interaction.
+
+Traditional architecture:
+
+```text
+UI
+ ↓
+API
+ ↓
+Server
+ ↓
+Response
+ ↓
+UI
+```
+
+TAB should instead follow an architecture conceptually similar to:
+
+```text
+SwiftUI
+   ↓
+Local Database
+   ↓
+Sync Engine
+   ↓
+Backend
+```
+
+The local database should act as the primary data source for the interface.
+
+## Tech Stack
+
+Initial technologies to evaluate and use:
+
+- **Language:** Swift
+- **UI:** SwiftUI
+- **Concurrency:** Swift Concurrency
+- **Local Persistence:** SQLite / SwiftData — architectural decision pending
+- **Backend:** Supabase
+- **Remote Database:** PostgreSQL
+- **Authentication:** Supabase Auth
+- **Testing:** Swift Testing / XCTest
+
+The synchronization strategy will be evaluated before committing to a specific implementation.
+
+Possible approaches include:
+
+- Custom synchronization layer
+- PowerSync
+- Supabase Realtime
+- Other compatible offline-first solutions
+
+The final decision should be documented and technically justified.
+
+## MVP
+
+The first version should support:
+
+- User registration
+- Login
+- Create group
+- Add participants
+- Create expense
+- Select payer
+- Select participants
+- Equal split
+- Balance calculation
+- Local persistence
+- Full basic functionality while offline
+- Optimistic updates
+- Synchronization after reconnection
+- Synchronization status
+- Group expense history
+
+## Domain Model
+
+### User
+
+```text
+User
+├── id
+├── name
+└── email
+```
+
+### Group
+
+```text
+Group
+├── id
+├── name
+├── createdBy
+└── createdAt
+```
+
+### GroupMember
+
+```text
+GroupMember
+├── id
+├── groupId
+└── userId
+```
+
+### Expense
+
+```text
+Expense
+├── id
+├── groupId
+├── paidBy
+├── title
+├── amount
+├── currency
+├── createdAt
+└── updatedAt
+```
+
+### ExpenseSplit
+
+```text
+ExpenseSplit
+├── id
+├── expenseId
+├── userId
+└── amount
+```
+
+The data model may evolve during the database design phase.
+
+## Balance Calculation
+
+Balances should be derived from source data whenever possible.
+
+```text
+Expenses
     ↓
-Splits
+Expense Splits
     ↓
-Net balances
+Net User Balances
     ↓
-Settlement suggestions
+Settlement Suggestions
+```
 
----
+Derived balances should not become unnecessary duplicated sources of truth.
 
-# Offline-First Architecture
-
-Suggested flow:
-
-React Native UI
-
-    ↓
-
-SQLite
-
-    ↓
-
-PowerSync
-
-    ↓
-
-Supabase / PostgreSQL
-
-    ↓
-
-PowerSync
-
-    ↓
-
-Other devices
-
----
-
-# Synchronization States
-
-Records may have states such as:
-
-- Synced.
-- Pending.
-- Failed.
-- Conflict.
-
-The UI should communicate when changes are waiting to synchronize.
+## Offline Workflow
 
 Example:
 
-Offline — 3 changes waiting to sync
+```text
+Device goes offline
+       ↓
+User creates expense
+       ↓
+Expense stored locally
+       ↓
+UI updates immediately
+       ↓
+Change marked as pending
+       ↓
+Internet connection returns
+       ↓
+Sync engine processes change
+       ↓
+Server confirms operation
+       ↓
+Other devices receive update
+```
 
----
+From the user's perspective, creating an expense offline should feel almost identical to creating one online.
 
-# Conflict Scenario
+## Synchronization States
 
-Example:
+Local operations may have states similar to:
 
-David is offline.
+```text
+Synced
+Pending
+Failed
+Conflict
+```
 
-He changes:
+The final model will depend on the synchronization architecture.
 
-Dinner → €100
+## Conflict Resolution
 
-At the same time Ana changes:
-
-Dinner → €120
-
-Both devices reconnect.
-
-The system must determine:
-
-- Which change wins?
-- Whether both changes can be merged.
-- Whether the user must resolve the conflict.
-
-Conflict-resolution strategy should be explicitly designed and documented.
-
----
-
-# Possible Conflict Strategy
-
-For MVP:
-
-Last-write-wins may be acceptable for simple fields.
-
-However, the architecture should document its limitations.
-
-More advanced strategies can later be explored.
-
----
-
-# Optimistic UI
-
-When the user creates an expense:
-
-Press Add Expense
-
-    ↓
-
-Save immediately locally
-
-    ↓
-
-UI updates instantly
-
-    ↓
-
-Background synchronization happens later
-
-The user should not wait for a server response.
-
----
-
-# Authentication
-
-Supabase Auth may be used.
-
-Authentication should allow users to:
-
-- Create an account.
-- Log in.
-- Join groups.
-
-Authentication should not block local architecture decisions.
-
----
-
-# Main Screens
-
-## Groups
+Conflict handling is one of the core engineering challenges.
 
 Example:
 
-Lisbon Trip
-Flat Expenses
-Weekend Madrid
+```text
+David — Offline
+Dinner = €100
 
-## Group Details
+Ana — Another device
+Dinner = €120
 
-Display:
+       ↓
 
-- Members.
-- Balance.
-- Expenses.
+Both synchronize
+```
 
-## Add Expense
+The system must define deterministic behavior.
 
-Fields:
+Topics to investigate include:
 
-- Description.
-- Amount.
-- Paid by.
-- Participants.
-- Split method.
+- Last-write-wins
+- Server timestamps
+- Client timestamps
+- Version numbers
+- Optimistic concurrency
+- Conflict detection
+- Merge strategies
+- Idempotency
+- Server authority
 
-## Expense Details
+A simple strategy such as last-write-wins may be acceptable for the MVP, but its limitations must be understood and documented.
 
-Display:
+## Optimistic UI
 
-- Total.
-- Payer.
-- Split.
-- Sync status.
+The expected workflow should be:
 
----
+```text
+User action
+    ↓
+Local write
+    ↓
+Immediate UI update
+    ↓
+Background synchronization
+```
 
-# Split Methods
+The user should not wait for a remote server before seeing their own changes.
 
-Initial MVP:
+## Swift Concurrency
 
-Equal split.
+TAB should also be used to explore modern Swift concurrency.
 
-Example:
+Relevant concepts include:
 
-€120 / 4 people = €30 each.
+- `async/await`
+- `Task`
+- `Actor`
+- `Sendable`
+- Task cancellation
+- Structured concurrency
+- Safe access to shared state
 
-Future possibilities:
+Concurrency should be introduced where it solves real synchronization or networking problems rather than simply for demonstration.
 
-- Exact amounts.
-- Percentages.
-- Shares.
+## Project Structure
 
-Do not implement them initially unless required.
+Initial direction:
 
----
+```text
+TAB/
+├── App/
+├── Features/
+│   ├── Authentication/
+│   ├── Groups/
+│   ├── Expenses/
+│   └── Balances/
+├── Domain/
+├── Persistence/
+├── Synchronization/
+├── Networking/
+├── Models/
+├── Services/
+└── Tests/
+```
 
-# Architecture
+## Development Roadmap
 
-Suggested structure:
-
-src/
-
-features/
-    groups/
-    expenses/
-    balances/
-    authentication/
-
-database/
-    schema/
-    migrations/
-    repositories/
-
-sync/
-    powersync/
-
-services/
-    balances/
-    settlement/
-
-store/
-
-components/
-
-types/
-
----
-
-# MVP
-
-The MVP should contain:
-
-- Authentication.
-- Create group.
-- Add members.
-- Add expense.
-- Equal split.
-- Calculate balances.
-- Local SQLite storage.
-- Offline usage.
-- Synchronization.
-- Sync status.
-- Group history.
-
----
-
-# Features Outside Initial MVP
-
-Do NOT implement initially:
-
-- Payments.
-- Bank integrations.
-- Multi-currency conversion.
-- Receipt OCR.
-- Chat.
-- Social network.
-- Complex notifications.
-- AI features.
-- Advanced analytics.
-
-The objective is offline synchronization, not feature quantity.
-
----
-
-# Important Engineering Challenges
-
-## 1. Source of Truth
-
-The local database should drive the UI.
-
----
-
-## 2. Synchronization
-
-Changes should synchronize automatically when connectivity returns.
-
----
-
-## 3. Conflicts
-
-Concurrent modifications must have a predictable behavior.
-
----
-
-## 4. Data Consistency
-
-Expenses, splits and balances must remain mathematically consistent.
-
----
-
-## 5. Optimistic UX
-
-Offline operations should feel identical to online operations.
-
----
-
-# Development Phases
-
-## Phase 1 — Product Definition
+### Phase 1 — Product Definition
 
 Define:
 
-- Groups.
-- Expenses.
-- Splits.
-- Balances.
-- User flows.
+- Product scope
+- Groups
+- Expenses
+- Splits
+- Balances
+- User flows
 
-## Phase 2 — Data Model
+### Phase 2 — Offline-First Architecture
+
+Define:
+
+- Source of truth
+- Local writes
+- Sync boundaries
+- Repository architecture
+
+### Phase 3 — Relational Data Model
 
 Design:
 
-- PostgreSQL schema.
-- SQLite schema.
-- Relationships.
+- Users
+- Groups
+- Memberships
+- Expenses
+- Expense splits
 
-## Phase 3 — Local Application
+### Phase 4 — Local Persistence
 
-Build the app using only SQLite first.
+Evaluate and choose between:
+
+- SwiftData
+- SQLite
+- Other justified native persistence strategies
+
+### Phase 5 — Local Application
+
+Build the core application without requiring a backend.
 
 Implement:
 
-- Groups.
-- Expenses.
-- Splits.
-- Balances.
+- Groups
+- Members
+- Expenses
+- Equal splitting
+- Balances
 
-## Phase 4 — Authentication
+### Phase 6 — Balance Engine
 
-Integrate Supabase Auth.
+Implement and test balance calculations.
 
-## Phase 5 — Synchronization
+### Phase 7 — Backend & Authentication
 
-Integrate PowerSync.
+Add:
+
+- Supabase
+- Authentication
+- PostgreSQL
+
+### Phase 8 — Synchronization Protocol
+
+Define:
+
+- Change representation
+- Pending operations
+- Server acknowledgement
+- Error handling
+- Versioning
+
+### Phase 9 — Sync Engine
+
+Implement synchronization between local and remote state.
+
+### Phase 10 — Optimistic Updates
+
+Ensure local actions are immediately reflected in the UI.
+
+### Phase 11 — Conflict Resolution
+
+Implement and document deterministic conflict behavior.
+
+### Phase 12 — Multi-Device Testing
+
+Test concurrent changes across multiple devices.
+
+### Phase 13 — Reliability
 
 Test:
 
-- Offline creation.
-- Offline update.
-- Reconnection.
-- Multi-device changes.
+- Connectivity loss
+- Reconnection
+- App restart
+- Partial synchronization
+- Duplicate operations
+- Server failures
 
-## Phase 6 — Conflict Handling
+### Phase 14 — Testing
 
-Define and implement conflict rules.
+Add:
 
-## Phase 7 — Reliability
+- Domain tests
+- Balance tests
+- Synchronization tests
+- Conflict tests
 
-Test:
-
-- Connection loss.
-- App restart.
-- Sync failures.
-- Duplicate operations.
-
-## Phase 8 — Documentation
+### Phase 15 — Documentation
 
 Document:
 
-- Offline-first architecture.
-- Sync architecture.
-- Database model.
-- Conflict strategy.
-- Technical trade-offs.
+- Offline-first architecture
+- Database model
+- Synchronization protocol
+- Conflict strategy
+- Technical trade-offs
 
----
+### Phase 16 — Release
 
-# Portfolio Value
+Prepare:
 
-TAB should demonstrate knowledge of:
+- Demo
+- Screenshots
+- Architecture documentation
+- Release notes
 
-- SQL.
-- Local databases.
-- Distributed systems concepts.
-- Offline-first architecture.
-- Synchronization.
-- Conflict resolution.
-- Optimistic UI.
-- Data consistency.
-- React Native architecture.
+## Out of Scope
 
-The main portfolio story should not be:
+The initial version will not include:
 
-"I built a Splitwise clone."
+- Payments
+- Bank integrations
+- Receipt OCR
+- Automatic currency conversion
+- Chat
+- Social networking
+- AI features
+- Advanced analytics
+- Complex split strategies
 
-It should be:
+The initial split strategy will focus on equal splitting.
 
-"I built an offline-first mobile application with local persistence, optimistic updates, synchronization and conflict handling."
+## Project Philosophy
+
+TAB should not be presented as:
+
+> A Splitwise clone.
+
+Instead, the project should demonstrate:
+
+> An offline-first native iOS application with local persistence, optimistic updates, multi-device synchronization, data consistency, and explicit conflict handling.
+
+## Status
+
+🚧 **In development**
+
+Current stage:
+
+**Phase 1 — Product Definition**
