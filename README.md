@@ -70,7 +70,7 @@ flowchart LR
 - No Supabase project is provisioned for a public demo. Multi-device convergence is verified against an in-memory server, not a live deployment.
 - Equal splitting is the creation flow; the editor preserves a pre-existing unequal split only while amount and participants stay the same.
 - Payments, bank connections, automatic currency conversion and receipt OCR are out of scope.
-- No tagged release or App Store build has been published. The [release notes](docs/release/release-notes.md) distinguish what was tested from what was not.
+- The source is tagged v1.0.0 for the portfolio; no GitHub Release or App Store build has been published. The [release notes](docs/release/release-notes.md) distinguish what was tested from what was not.
 
 ## Quality
 

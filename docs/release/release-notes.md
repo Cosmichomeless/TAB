@@ -1,7 +1,7 @@
-# TAB 0.1.0 (draft; no tag or release published)
+# TAB 1.0.0 — portfolio source tag
 
-First release: an offline-first expense splitting app for iOS 17, with a sync engine that is complete and tested
-but not connected to a real backend.
+First source tag: an offline-first expense splitting app for iOS 17, with a sync engine that is complete and tested
+but not connected to a real backend. This is not an App Store or hosted-backend release.
 
 ## What is included
 
