@@ -6,6 +6,14 @@ import TABCore
 /// `Group` is also a SwiftUI type, so the domain entity gets an unambiguous alias in the app.
 typealias ExpenseGroup = TABCore.Group
 
+struct GroupSummary: Equatable {
+    var memberCount = 0
+    var expenseCount = 0
+    var totalMinor: Int64 = 0
+    /// Positive: the others owe you. Negative: you owe them.
+    var myBalanceMinor: Int64 = 0
+}
+
 @MainActor
 @Observable
 final class AppModel {
@@ -35,12 +43,20 @@ final class AppModel {
     /// Bumped whenever a sync cycle finishes, so screens can refresh their per-row badges.
     private(set) var syncRevision = 0
 
+    /// What the group list shows for each group without opening it.
+    private(set) var summaries: [UUID: GroupSummary] = [:]
+
+    @ObservationIgnored private var database: Database?
     @ObservationIgnored private var outbox: OutboxStore?
     @ObservationIgnored private var scheduler: SyncScheduler?
+    @ObservationIgnored private var demoBackend: (any RemoteBackend)?
     @ObservationIgnored private var eventsTask: Task<Void, Never>?
     @ObservationIgnored private var pathMonitor: NWPathMonitor?
 
     var isBackendConfigured: Bool { auth != nil }
+    var currentUser: User? {
+        if case .ready(let user) = state { user } else { nil }
+    }
     var syncOverview: SyncOverview { SyncOverview(phase: syncPhase, summary: syncSummary) }
 
     init() {
@@ -60,6 +76,16 @@ final class AppModel {
         #endif
         do {
             let database = try Database(path: try Self.databaseURL().path)
+            self.database = database
+            #if DEBUG
+            // `-demoData` fills the app with a realistic trip against an in-memory server (see DemoData.swift).
+            if CommandLine.arguments.contains("-demoData") {
+                demoBackend = try await DemoData.install(
+                    in: database, offline: CommandLine.arguments.contains("-demoOffline"),
+                    userKey: Self.currentUserKey
+                )
+            }
+            #endif
             let repository = SQLiteGroupRepository(database: database)
             self.repository = repository
             self.expenseRepository = SQLiteExpenseRepository(database: database)
@@ -133,6 +159,45 @@ final class AppModel {
         requestSync()
     }
 
+    func updateExpense(
+        id: UUID, paidBy: UUID, title: String, amountMinor: Int64,
+        originalAmountMinor: Int64, originalSplits: [ExpenseSplit], participants: [UUID]
+    ) async throws {
+        guard let expenseRepository else { return }
+        _ = try await expenseRepository.updateExpense(
+            id: id, paidBy: paidBy, title: title, amountMinor: amountMinor,
+            originalAmountMinor: originalAmountMinor, originalSplits: originalSplits, participants: participants
+        )
+        requestSync()
+    }
+
+    func deleteExpense(id: UUID) async throws {
+        guard let expenseRepository else { return }
+        try await expenseRepository.deleteExpense(id: id)
+        requestSync()
+    }
+
+    // MARK: - Conflicts
+
+    /// Changes of this group that lost to another device's edit (or still wait for a decision), newest first.
+    func conflicts(in groupID: UUID) async -> [Conflict] {
+        guard let database else { return [] }
+        let all = (try? await ConflictResolver(database: database).conflicts()) ?? []
+        return all.filter { ($0.local ?? $0.remote)?.groupID == groupID }
+    }
+
+    func restoreConflict(_ id: UUID) async throws {
+        guard let database else { return }
+        let resolver = ConflictResolver(database: database)
+        let conflict = try await resolver.conflicts().first { $0.id == id }
+        if conflict?.status == .open {
+            try await resolver.keepLocal(id)
+        } else {
+            try await resolver.restoreLocal(id)
+        }
+        requestSync()
+    }
+
     // MARK: - Synchronization
 
     /// Asks the scheduler to sync and returns immediately: local writes never wait for the network.
@@ -148,8 +213,15 @@ final class AppModel {
     }
 
     private func startSync(database: Database) {
-        guard let config, let auth else { return }
-        let engine = SyncEngine(database: database, backend: SupabaseBackend(config: config, auth: auth))
+        let backend: any RemoteBackend
+        if let demoBackend {
+            backend = demoBackend
+        } else if let config, let auth {
+            backend = SupabaseBackend(config: config, auth: auth)
+        } else {
+            return
+        }
+        let engine = SyncEngine(database: database, backend: backend)
         let scheduler = SyncScheduler(engine: engine)
         self.scheduler = scheduler
         syncPhase = .idle
@@ -192,6 +264,24 @@ final class AppModel {
     private func reloadGroups() async throws {
         guard let repository else { return }
         groups = try await repository.groups()
+        await refreshSummaries()
+    }
+
+    private func refreshSummaries() async {
+        guard let repository, let expenseRepository, let me = currentUser else { return }
+        var result: [UUID: GroupSummary] = [:]
+        for group in groups {
+            guard let members = try? await repository.members(of: group.id),
+                  let ledger = try? await expenseRepository.ledger(in: group.id) else { continue }
+            let balances = BalanceCalculator.balances(for: ledger, members: members.map(\.id))
+            result[group.id] = GroupSummary(
+                memberCount: members.count,
+                expenseCount: ledger.count,
+                totalMinor: ledger.reduce(0) { $0 + $1.expense.amountMinor },
+                myBalanceMinor: balances.first { $0.userID == me.id }?.netMinor ?? 0
+            )
+        }
+        summaries = result
     }
 
     #if DEBUG

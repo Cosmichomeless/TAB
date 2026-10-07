@@ -75,9 +75,9 @@ struct SyncStatusBar: View {
 
     private static func color(for headline: SyncHeadline) -> Color {
         switch headline {
-        case .conflicts, .accountMismatch: .orange
-        case .failed, .error: .red
-        default: .secondary
+        case .conflicts, .accountMismatch: Theme.warning
+        case .failed, .error: Theme.negative
+        default: Theme.accent
         }
     }
 }
@@ -104,9 +104,9 @@ struct SyncBadge: View {
 
     private var color: Color {
         switch status {
-        case .synced, .pending: .secondary
-        case .failed: .red
-        case .conflict: .orange
+        case .synced, .pending: Theme.accent
+        case .failed: Theme.negative
+        case .conflict: Theme.warning
         }
     }
 

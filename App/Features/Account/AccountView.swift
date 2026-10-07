@@ -12,6 +12,19 @@ struct AccountView: View {
     var body: some View {
         NavigationStack {
             Form {
+                Section {
+                    HStack(spacing: 14) {
+                        Image(systemName: "person.crop.circle.fill")
+                            .font(.system(size: 44)).foregroundStyle(Theme.accent)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(model.currentUser?.name ?? "TAB").font(.headline)
+                            Text("Your expenses stay on this device, even offline.")
+                                .font(.footnote).foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(.vertical, 8)
+                }
+                .listRowBackground(Theme.card)
                 if !model.isBackendConfigured {
                     Section {
                         Text("Backend not configured. TAB keeps working fully offline on this device.")
@@ -39,14 +52,18 @@ struct AccountView: View {
                     .disabled(isBusy || email.isEmpty || password.isEmpty)
                 }
                 if let message {
-                    Text(message).foregroundStyle(.red)
+                    Text(message).foregroundStyle(Theme.negative)
                 }
             }
+            .scrollContentBackground(.hidden)
+            .brandScreen()
             .navigationTitle("Account")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
             }
         }
+        .tint(Theme.accent)
     }
 
     private func run(_ action: @escaping () async throws -> Void) {

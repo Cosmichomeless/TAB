@@ -45,3 +45,34 @@ extension ExpenseRepository {
         )
     }
 }
+
+extension ExpenseRepository {
+    /// Edits an expense, splitting the new amount equally among `participants`.
+    public func updateExpense(
+        id: UUID,
+        paidBy: UUID,
+        title: String,
+        amountMinor: Int64,
+        splitEquallyAmong participants: [UUID]
+    ) async throws -> Expense {
+        try await updateExpense(
+            id: id, paidBy: paidBy, title: title, amountMinor: amountMinor,
+            shares: try EqualSplit.shares(amountMinor: amountMinor, among: participants)
+        )
+    }
+}
+
+extension ExpenseRepository {
+    public func updateExpense(
+        id: UUID, paidBy: UUID, title: String, amountMinor: Int64,
+        originalAmountMinor: Int64, originalSplits: [ExpenseSplit], participants: [UUID]
+    ) async throws -> Expense {
+        let shares: [SplitShare]
+        if amountMinor == originalAmountMinor && Set(participants) == Set(originalSplits.map(\.userID)) {
+            shares = originalSplits.map { SplitShare(userID: $0.userID, amountMinor: $0.amountMinor) }
+        } else {
+            shares = try EqualSplit.shares(amountMinor: amountMinor, among: participants)
+        }
+        return try await updateExpense(id: id, paidBy: paidBy, title: title, amountMinor: amountMinor, shares: shares)
+    }
+}
