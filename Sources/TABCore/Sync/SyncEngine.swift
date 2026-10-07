@@ -21,7 +21,10 @@ public struct SyncReport: Sendable, Equatable {
     public var retrying = 0
     /// Operations the backend will never accept.
     public var rejected = 0
+    /// Conflicts detected while pushing.
     public var conflicts = 0
+    /// Conflicts the engine resolved by itself (`ConflictPolicy.remoteWins`).
+    public var resolved = 0
     /// Remote rows that changed the local database.
     public var pulled = 0
     /// When the earliest retry becomes due, so a scheduler can sleep until then.
@@ -35,6 +38,7 @@ public struct SyncReport: Sendable, Equatable {
         retrying += later.retrying
         rejected += later.rejected
         conflicts += later.conflicts
+        resolved += later.resolved
         pulled += later.pulled
         nextRetryAt = later.nextRetryAt
     }
@@ -49,6 +53,8 @@ public actor SyncEngine {
     private let database: Database
     private let backend: any RemoteBackend
     private let outbox: OutboxStore
+    private let resolver: ConflictResolver
+    private let conflictPolicy: ConflictPolicy
     private let now: @Sendable () -> Date
     private let batchSize: Int
     private let pageSize: Int
@@ -61,6 +67,7 @@ public actor SyncEngine {
     ///   - pageSize: rows requested per pull call.
     ///   - cursorOverlap: `server_seq` is assigned when a row is written, not when it commits, so a row can
     ///     become visible after a later one. Pulling from `cursor - overlap` and applying idempotently catches those.
+    ///   - conflictPolicy: what to do with a concurrent edit of the same expense (see `ConflictPolicy`).
     public init(
         database: Database,
         backend: any RemoteBackend,
@@ -68,11 +75,14 @@ public actor SyncEngine {
         batchSize: Int = 20,
         pageSize: Int = 500,
         cursorOverlap: Int64 = 1000,
+        conflictPolicy: ConflictPolicy = .remoteWins,
         now: @escaping @Sendable () -> Date = { Date() }
     ) {
         self.database = database
         self.backend = backend
         self.outbox = OutboxStore(database: database, retryPolicy: retryPolicy)
+        self.resolver = ConflictResolver(database: database)
+        self.conflictPolicy = conflictPolicy
         self.batchSize = batchSize
         self.pageSize = pageSize
         self.cursorOverlap = cursorOverlap
@@ -117,6 +127,10 @@ public actor SyncEngine {
                 return report
             }
             try await push(&report)
+            if report.outcome == .completed, try await resolveConflicts(&report) > 0 {
+                // Resolving releases the operations the conflict was holding back in its group.
+                try await push(&report)
+            }
             if report.outcome == .completed {
                 try await pull(&report)
             }
@@ -212,19 +226,11 @@ public actor SyncEngine {
 
     private func pull(_ report: inout SyncReport) async throws {
         let cursor = try await database.query("SELECT cursor FROM sync_state WHERE id = 1").first?.int("cursor") ?? 0
-        var since = max(0, cursor - cursorOverlap)
+        let since = max(0, cursor - cursorOverlap)
 
         // Every page is fetched before anything is written, so the single transaction below sees parents and
         // children together, and an interrupted pull changes nothing.
-        var changes: [RemoteChange] = []
-        while true {
-            let page = try await backend.pull(since: since, limit: pageSize, groupID: nil)
-            changes += page
-            guard page.count >= pageSize, let last = page.last?.serverSeq, last > since else { break }
-            since = last
-        }
-
-        let fetched = changes
+        let fetched = try await fetchChanges(since: since, groupID: nil)
         let newCursor = max(cursor, fetched.map(\.serverSeq).max() ?? cursor)
         let stamp = now().millisecondsSince1970
         report.pulled += try await database.transaction { db in
@@ -232,6 +238,37 @@ public actor SyncEngine {
             try db.execute("UPDATE sync_state SET cursor = ?, last_pulled_at = ? WHERE id = 1", [.int(newCursor), .int(stamp)])
             return applied
         }
+    }
+
+    private func fetchChanges(since start: Int64, groupID: UUID?) async throws -> [RemoteChange] {
+        var since = start
+        var changes: [RemoteChange] = []
+        while true {
+            let page = try await backend.pull(since: since, limit: pageSize, groupID: groupID)
+            changes += page
+            guard page.count >= pageSize, let last = page.last?.serverSeq, last > since else { return changes }
+            since = last
+        }
+    }
+
+    // MARK: - Conflicts
+
+    /// Looks at the open conflicts, fetches the server's copy of each affected group and applies the policy.
+    /// Returns how many conflicts were resolved. Runs between push and pull: the pull would skip these
+    /// entities anyway because they still have unfinished operations.
+    private func resolveConflicts(_ report: inout SyncReport) async throws -> Int {
+        let policy = conflictPolicy
+        // Under `.manual` the server's copy is fetched once, to record it, not on every cycle.
+        let open = try await resolver.conflicts(status: .open).filter { policy == .remoteWins || $0.remote == nil }
+        let byGroup = Dictionary(grouping: open.compactMap { conflict in conflict.groupID.map { ($0, conflict) } }, by: \.0)
+
+        var resolved = 0
+        for groupID in byGroup.keys.sorted(by: { $0.uuidString < $1.uuidString }) {
+            let snapshot = try await fetchChanges(since: 0, groupID: groupID)
+            resolved += try await resolver.process((byGroup[groupID] ?? []).map(\.1), snapshot: snapshot, policy: policy)
+        }
+        report.resolved += resolved
+        return resolved
     }
 
     // MARK: - Bookkeeping

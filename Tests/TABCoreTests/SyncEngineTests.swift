@@ -18,8 +18,10 @@ private struct Device {
     let backend: InMemoryBackend
     let engine: SyncEngine
     let clock: TestClock
+    var resolver: ConflictResolver { ConflictResolver(database: database) }
 
-    init(server: InMemoryServer, account: UUID = UUID(), clock: TestClock = TestClock(), pageSize: Int = 500) throws {
+    init(server: InMemoryServer, account: UUID = UUID(), clock: TestClock = TestClock(), pageSize: Int = 500,
+         conflictPolicy: ConflictPolicy = .remoteWins) throws {
         database = try Database.inMemory()
         groups = SQLiteGroupRepository(database: database)
         expenses = SQLiteExpenseRepository(database: database)
@@ -27,7 +29,9 @@ private struct Device {
         backend = InMemoryBackend(server: server, account: account)
         self.clock = clock
         let clock = clock
-        engine = SyncEngine(database: database, backend: backend, pageSize: pageSize, now: { clock.now })
+        engine = SyncEngine(
+            database: database, backend: backend, pageSize: pageSize, conflictPolicy: conflictPolicy, now: { clock.now }
+        )
     }
 
     struct Trip {
@@ -225,9 +229,9 @@ struct SyncEngineTests {
 
     // MARK: - Conflicts
 
-    @Test func aConcurrentRemoteEditIsRecordedAsAConflict() async throws {
+    @Test func underTheManualPolicyAConcurrentEditStaysOpenWithBothVersionsRecorded() async throws {
         let server = InMemoryServer()
-        let device = try Device(server: server)
+        let device = try Device(server: server, conflictPolicy: .manual)
         let trip = try await device.makeTrip()
         let expense = try await device.addExpense(trip, title: "Dinner")
         await device.engine.sync()
@@ -244,6 +248,14 @@ struct SyncEngineTests {
         #expect(conflicts.first?.uuid("entity_id") == expense.id)
         #expect(conflicts.first?.text("entity_type") == "expense")
         #expect(conflicts.first?.optionalInt("remote_version") == 2)
+        #expect(report.resolved == 0)
+
+        // Both sides are recorded: the user's deletion and the server's edit.
+        let recorded = try await device.resolver.conflicts(status: .open)
+        #expect(recorded.first?.local?.deletedAt != nil)
+        #expect(recorded.first?.local?.title == "Dinner")
+        #expect(recorded.first?.remote?.title == "Dinner (edited elsewhere)")
+        #expect(recorded.first?.remote?.deletedAt == nil)
 
         // The pull skips the entity while it has an unfinished operation: the local change is not overwritten.
         #expect(try await device.title(of: expense.id) == "Dinner")
@@ -252,6 +264,179 @@ struct SyncEngineTests {
         // Syncing again does not pile up duplicates.
         await device.engine.sync()
         #expect(try await device.count("conflict") == 1)
+    }
+
+    @Test func theServerVersionWinsByDefaultAndTheLocalChangeIsKept() async throws {
+        let server = InMemoryServer()
+        let device = try Device(server: server)
+        let trip = try await device.makeTrip()
+        let expense = try await device.addExpense(trip, title: "Dinner")
+        await device.engine.sync()
+
+        await server.editExpense(expense.id, title: "Dinner (edited elsewhere)")
+        try await device.expenses.deleteExpense(id: expense.id)
+        let report = await device.engine.sync()
+
+        #expect(report.outcome == .completed)
+        #expect(report.conflicts == 1)
+        #expect(report.resolved == 1)
+
+        // The device now shows what the server has, and nothing is waiting any more.
+        #expect(try await device.title(of: expense.id) == "Dinner (edited elsewhere)")
+        #expect(try await device.version(of: expense.id) == 2)
+        #expect(try await device.outbox.operations().filter { $0.status.isUnfinished }.isEmpty)
+        #expect(try await device.outbox.statuses(of: [expense.id])[expense.id] == .synced)
+        #expect(try await device.outbox.summary().isFullySynced)
+        #expect(try await device.expenses.expenses(in: trip.group.id).map(\.title) == ["Dinner (edited elsewhere)"])
+
+        // The change that lost is still on record.
+        let all = try await device.resolver.conflicts()
+        #expect(all.count == 1)
+        #expect(all.first?.status == .resolved)
+        #expect(all.first?.resolution == .remoteWins)
+        #expect(all.first?.local?.deletedAt != nil)
+        #expect(all.first?.remote?.title == "Dinner (edited elsewhere)")
+        #expect(all.first?.remoteVersion == 2)
+
+        // Another cycle changes nothing.
+        let again = await device.engine.sync()
+        #expect(again.resolved == 0)
+        #expect(again.conflicts == 0)
+        #expect(try await device.count("conflict") == 1)
+    }
+
+    @Test func aChangeThatLostCanBeRestoredOnTopOfTheServerVersion() async throws {
+        let server = InMemoryServer()
+        let device = try Device(server: server)
+        let trip = try await device.makeTrip()
+        let expense = try await device.addExpense(trip, title: "Dinner")
+        await device.engine.sync()
+        await server.editExpense(expense.id, title: "Dinner (edited elsewhere)")
+        try await device.expenses.deleteExpense(id: expense.id)
+        await device.engine.sync()
+
+        let conflict = try #require(try await device.resolver.conflicts().first)
+        try await device.resolver.restoreLocal(conflict.id)
+
+        // Locally the deletion is back immediately and queued for the server.
+        #expect(try await device.expenses.expenses(in: trip.group.id).isEmpty)
+        #expect(try await device.outbox.statuses(of: [expense.id])[expense.id] == .pending)
+
+        let report = await device.engine.sync()
+        #expect(report.conflicts == 0)
+        #expect(report.pushed == 1)
+        let remote = try #require(await server.expenseRows.first { $0.id == expense.id })
+        #expect(remote.deletedAt != nil)
+        #expect(remote.version == 3)
+        #expect(try await device.version(of: expense.id) == 3)
+        #expect(try await device.resolver.conflicts().first?.resolution == .restored)
+
+        // Restoring twice is refused.
+        await #expect(throws: ConflictError.notRestorable) { try await device.resolver.restoreLocal(conflict.id) }
+    }
+
+    @Test func keepingTheLocalChangeOverwritesTheServerOnPurpose() async throws {
+        let server = InMemoryServer()
+        let device = try Device(server: server, conflictPolicy: .manual)
+        let trip = try await device.makeTrip()
+        let expense = try await device.addExpense(trip, title: "Dinner")
+        await device.engine.sync()
+        await server.editExpense(expense.id, title: "Dinner (edited elsewhere)")
+        try await device.expenses.deleteExpense(id: expense.id)
+        await device.engine.sync()
+
+        // Still open after more cycles: manual means manual.
+        await device.engine.sync()
+        let conflict = try #require(try await device.resolver.conflicts(status: .open).first)
+
+        try await device.resolver.keepLocal(conflict.id)
+        let report = await device.engine.sync()
+
+        #expect(report.conflicts == 0)
+        #expect(report.pushed == 1)
+        let remote = try #require(await server.expenseRows.first { $0.id == expense.id })
+        #expect(remote.deletedAt != nil)
+        #expect(remote.version == 3)
+        #expect(try await device.resolver.conflicts().first?.resolution == .keepLocal)
+        #expect(try await device.outbox.summary().isFullySynced)
+
+        await #expect(throws: ConflictError.notOpen) { try await device.resolver.keepLocal(conflict.id) }
+    }
+
+    @Test func keepingTheLocalChangeNeedsTheServerVersion() async throws {
+        let server = InMemoryServer()
+        let device = try Device(server: server, conflictPolicy: .manual)
+        await #expect(throws: ConflictError.notFound) { try await device.resolver.keepLocal(UUID()) }
+    }
+
+    @Test func twoDevicesThatChangeTheSameExpenseDifferentlyConverge() async throws {
+        let server = InMemoryServer()
+        let account = UUID()
+        let first = try Device(server: server, account: account)
+        let trip = try await first.makeTrip()
+        let expense = try await first.addExpense(trip, title: "Dinner")
+        await first.engine.sync()
+        let second = try Device(server: server, account: account)
+        await second.engine.sync()
+
+        // The second device's edit reaches the server first (there is no edit screen yet, so the test hook
+        // stands in for it); the first device deletes the expense from a stale copy.
+        await server.editExpense(expense.id, title: "Dinner (edited)")
+        try await first.expenses.deleteExpense(id: expense.id)
+        let report = await first.engine.sync()
+        await second.engine.sync()
+
+        #expect(report.conflicts == 1)
+        #expect(report.resolved == 1)
+        for device in [first, second] {
+            #expect(try await device.title(of: expense.id) == "Dinner (edited)")
+            #expect(try await device.version(of: expense.id) == 2)
+            #expect(try await device.expenses.expenses(in: trip.group.id).count == 1)
+            #expect(try await device.outbox.summary().isFullySynced)
+        }
+    }
+
+    @Test func theSameChangeOnTwoDevicesIsNotAConflict() async throws {
+        let server = InMemoryServer()
+        let account = UUID()
+        let first = try Device(server: server, account: account)
+        let trip = try await first.makeTrip()
+        let expense = try await first.addExpense(trip)
+        await first.engine.sync()
+        let second = try Device(server: server, account: account)
+        await second.engine.sync()
+
+        // Both delete it while offline. The backend sees the second request as a replay of the first.
+        try await first.expenses.deleteExpense(id: expense.id)
+        try await second.expenses.deleteExpense(id: expense.id)
+        await second.engine.sync()
+        let report = await first.engine.sync()
+        await second.engine.sync()
+
+        #expect(report.conflicts == 0)
+        #expect(report.resolved == 0)
+        #expect(try await first.count("conflict") == 0)
+        #expect(try await first.version(of: expense.id) == (try await second.version(of: expense.id)))
+        #expect(try await first.expenses.expenses(in: trip.group.id).isEmpty)
+        #expect(try await second.expenses.expenses(in: trip.group.id).isEmpty)
+    }
+
+    @Test func resolvingAConflictReleasesTheOperationsItWasHoldingBack() async throws {
+        let server = InMemoryServer()
+        let device = try Device(server: server)
+        let trip = try await device.makeTrip()
+        let expense = try await device.addExpense(trip, title: "Dinner")
+        await device.engine.sync()
+
+        await server.editExpense(expense.id, title: "Dinner (edited elsewhere)")
+        try await device.expenses.deleteExpense(id: expense.id)
+        let later = try await device.addExpense(trip, title: "Taxi", amountMinor: 1200)
+        let report = await device.engine.sync()
+
+        // The taxi was queued behind the conflicting operation and goes out in the same cycle.
+        #expect(report.resolved == 1)
+        #expect(await server.expenseRows.contains { $0.id == later.id })
+        #expect(try await device.outbox.summary().isFullySynced)
     }
 
     // MARK: - Pull

@@ -53,7 +53,7 @@ pending ──send──▶ sending ──ack──▶ done
 | `sending` | A request is in flight. | Ack, error, or app restart (`recoverInterrupted` → `pending`). |
 | `failed` | Transient failure, retried with backoff. | `next_attempt_at` reached. |
 | `rejected` | The backend will never accept it as is. | User action (`requeue`) or discarding the change. |
-| `conflict` | The entity changed remotely. Details in table `conflict`. | Resolution (issue #13). |
+| `conflict` | The entity changed remotely. Details in table `conflict`. | Resolved by the engine (`remoteWins`) or by the user (`keepLocal`); see [conflict policy](conflict-policy.md). |
 | `done` | Acknowledged. Purged after a grace period. | `purgeDone`. |
 
 ### Acknowledgement
@@ -101,7 +101,7 @@ Backoff is exponential: `min(300 s, 2 s × 2^(attempts − 1))`, no jitter yet. 
 2. It calls `pull_changes(p_since := max(0, cursor − overlap), p_limit, p_group_id)` until a page is shorter than the limit. Rows arrive as `(entity, server_seq, payload)`. Every page is fetched **before anything is written**.
 3. All pages are applied in **one local transaction** (users, groups, members, then expenses with their splits, so parents precede children) and the cursor advances in that same transaction. An interrupted or failed pull therefore changes nothing and the next one starts from the same cursor.
 4. A change is applied **only if its `version` is newer than the local one**, so applying is idempotent and re-pulling overlapping rows is harmless.
-5. **Entities with an unfinished local operation are skipped**, not overwritten. If that operation later conflicts, the conflict resolution (#13) refetches the remote state with a group snapshot (`pull_changes(0, …, group_id)`), so nothing needs to be kept aside here.
+5. **Entities with an unfinished local operation are skipped**, not overwritten. If that operation later conflicts, the [conflict policy](conflict-policy.md) refetches the remote state with a group snapshot (`pull_changes(0, …, group_id)`), so nothing needs to be kept aside here.
 6. A membership that arrives under a different id than a local row for the same `(group, user)` replaces the local row, unless that row still has unfinished operations (then it is skipped).
 
 Known limitation: a pull whose rows violate a local foreign key (for example a membership for a user the device cannot see) fails as a whole and does not advance the cursor, so it is retried on every cycle. The RLS policies make the visible set closed under these references, which is why this is documented instead of handled.
@@ -175,7 +175,7 @@ What the UI shows is derived, never stored:
 - **No duplicate expenses.** Same operation, same entity ID: the second delivery is a no-op on the server.
 - **No lost local change.** A change leaves the outbox only after an acknowledgement.
 - **Per-group causal order** for one device. There is no global order across groups.
-- **Eventual convergence** while operations can be delivered. Conflicts and rejections stop convergence for the affected group until the user acts; they are never silently discarded.
+- **Eventual convergence** while operations can be delivered. Rejections stop convergence for the affected group until the user acts. Conflicts are resolved by the engine (the server's version wins, the local change is kept in `conflict` and can be restored); under the manual policy they stop the group like a rejection. Nothing is silently discarded.
 - **Not guaranteed:** real-time delivery (pull is on demand), end-to-end encryption, protection against a malicious device (the RPCs enforce membership, not business correctness beyond validation).
 
 ## Out of scope

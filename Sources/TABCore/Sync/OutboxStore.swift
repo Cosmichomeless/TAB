@@ -232,7 +232,7 @@ public struct OutboxStore: Sendable {
         }
     }
 
-    private static func setStatus(
+    static func setStatus(
         _ id: UUID, _ status: OperationStatus, error: String?, attemptsDelta: Int, nextAttempt: Date?,
         in db: isolated Database
     ) throws {
