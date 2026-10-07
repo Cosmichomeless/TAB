@@ -1,0 +1,140 @@
+import Foundation
+
+/// Local-first implementation of `ExpenseRepository` on top of SQLite.
+public struct SQLiteExpenseRepository: ExpenseRepository {
+    private let database: Database
+
+    public init(database: Database) {
+        self.database = database
+    }
+
+    public func createExpense(
+        groupID: UUID,
+        paidBy: UUID,
+        title: String,
+        amountMinor: Int64,
+        shares: [SplitShare]
+    ) async throws -> Expense {
+        let title = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty else { throw DomainError.emptyTitle }
+        guard amountMinor > 0 else { throw DomainError.invalidAmount }
+        guard !shares.isEmpty else { throw DomainError.noParticipants }
+
+        var seen = Set<UUID>()
+        for share in shares {
+            guard seen.insert(share.userID).inserted else { throw DomainError.duplicateParticipant(share.userID) }
+            guard share.amountMinor >= 0 else { throw DomainError.invalidAmount }
+        }
+        let total = shares.reduce(Int64(0)) { $0 + $1.amountMinor }
+        guard total == amountMinor else {
+            throw DomainError.splitsDoNotMatchAmount(expected: amountMinor, actual: total)
+        }
+
+        return try await database.transaction { db in
+            guard let groupRow = try db.query(
+                "SELECT currency FROM groups WHERE id = ?", [.text(groupID.uuidString)]
+            ).first else {
+                throw DomainError.groupNotFound(groupID)
+            }
+            for userID in [paidBy] + shares.map(\.userID) {
+                try Self.requireMember(userID, of: groupID, in: db)
+            }
+
+            let expense = Expense(
+                groupID: groupID,
+                paidBy: paidBy,
+                title: title,
+                amountMinor: amountMinor,
+                currency: Currency(code: groupRow.text("currency")) ?? .eur
+            )
+            try db.execute(
+                """
+                INSERT INTO expenses (id, group_id, paid_by, title, amount_minor, currency, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    .text(expense.id.uuidString), .text(groupID.uuidString), .text(paidBy.uuidString),
+                    .text(expense.title), .int(amountMinor), .text(expense.currency.code),
+                    .int(expense.createdAt.millisecondsSince1970), .int(expense.updatedAt.millisecondsSince1970),
+                ]
+            )
+            for share in shares {
+                try db.execute(
+                    "INSERT INTO expense_splits (id, expense_id, user_id, amount_minor) VALUES (?, ?, ?, ?)",
+                    [
+                        .text(UUID().uuidString), .text(expense.id.uuidString),
+                        .text(share.userID.uuidString), .int(share.amountMinor),
+                    ]
+                )
+            }
+            return expense
+        }
+    }
+
+    public func expenses(in groupID: UUID) async throws -> [Expense] {
+        try await database.query(
+            """
+            SELECT * FROM expenses
+            WHERE group_id = ? AND deleted_at IS NULL
+            ORDER BY created_at DESC, rowid DESC
+            """,
+            [.text(groupID.uuidString)]
+        ).map(Self.expense)
+    }
+
+    public func splits(of expenseID: UUID) async throws -> [ExpenseSplit] {
+        try await database.query(
+            "SELECT * FROM expense_splits WHERE expense_id = ? ORDER BY rowid",
+            [.text(expenseID.uuidString)]
+        ).map { row in
+            ExpenseSplit(
+                id: row.uuid("id"), expenseID: row.uuid("expense_id"),
+                userID: row.uuid("user_id"), amountMinor: row.int("amount_minor")
+            )
+        }
+    }
+
+    public func deleteExpense(id: UUID) async throws {
+        try await database.transaction { db in
+            guard let row = try db.query(
+                "SELECT deleted_at FROM expenses WHERE id = ?", [.text(id.uuidString)]
+            ).first else {
+                throw DomainError.expenseNotFound(id)
+            }
+            guard row.optionalInt("deleted_at") == nil else { return }
+            let now = Date().millisecondsSince1970
+            try db.execute(
+                "UPDATE expenses SET deleted_at = ?, updated_at = ? WHERE id = ?",
+                [.int(now), .int(now), .text(id.uuidString)]
+            )
+        }
+    }
+
+    public func changes() -> AsyncStream<Void> {
+        database.changes()
+    }
+
+    // MARK: - Helpers
+
+    private static func requireMember(_ userID: UUID, of groupID: UUID, in db: isolated Database) throws {
+        let rows = try db.query(
+            "SELECT 1 FROM group_members WHERE group_id = ? AND user_id = ?",
+            [.text(groupID.uuidString), .text(userID.uuidString)]
+        )
+        guard !rows.isEmpty else { throw DomainError.notAMember(userID: userID, groupID: groupID) }
+    }
+
+    private static func expense(_ row: Row) -> Expense {
+        Expense(
+            id: row.uuid("id"),
+            groupID: row.uuid("group_id"),
+            paidBy: row.uuid("paid_by"),
+            title: row.text("title"),
+            amountMinor: row.int("amount_minor"),
+            currency: Currency(code: row.text("currency")) ?? .eur,
+            createdAt: row.date("created_at"),
+            updatedAt: row.date("updated_at"),
+            deletedAt: row.optionalInt("deleted_at").map { Date(timeIntervalSince1970: Double($0) / 1000) }
+        )
+    }
+}

@@ -12,6 +12,12 @@ public struct Currency: Hashable, Sendable {
 
     public static let supported: [Currency] = [.eur, .usd, .gbp, .jpy]
 
+    /// Formats an amount in minor units, e.g. `1050` EUR becomes "€10.50".
+    public func format(minorUnits: Int64) -> String {
+        let amount = Decimal(minorUnits) / pow(10, minorUnitDigits)
+        return amount.formatted(.currency(code: code))
+    }
+
     private init(uncheckedCode: String, minorUnitDigits: Int) {
         self.code = uncheckedCode
         self.minorUnitDigits = minorUnitDigits
