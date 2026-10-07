@@ -18,6 +18,7 @@ final class AppModel {
     private(set) var state: State = .loading
     private(set) var groups: [ExpenseGroup] = []
     private(set) var repository: SQLiteGroupRepository?
+    private(set) var expenseRepository: SQLiteExpenseRepository?
 
     private static let currentUserKey = "currentUserID"
 
@@ -27,6 +28,7 @@ final class AppModel {
             let database = try Database(path: try Self.databaseURL().path)
             let repository = SQLiteGroupRepository(database: database)
             self.repository = repository
+            self.expenseRepository = SQLiteExpenseRepository(database: database)
 
             if let raw = UserDefaults.standard.string(forKey: Self.currentUserKey),
                let id = UUID(uuidString: raw),

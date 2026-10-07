@@ -26,6 +26,11 @@ public struct Row: Sendable {
         return nil
     }
 
+    public func optionalInt(_ column: String) -> Int64? {
+        if case .int(let value)? = values[column] { return value }
+        return nil
+    }
+
     public func uuid(_ column: String) -> UUID {
         UUID(uuidString: text(column)) ?? UUID(uuid: UUID_NULL)
     }

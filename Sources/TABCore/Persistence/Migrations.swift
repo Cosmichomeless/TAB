@@ -32,6 +32,32 @@ enum Migrator {
 
         CREATE INDEX group_members_group ON group_members(group_id);
         """,
+        // 2 — expenses and their splits
+        """
+        CREATE TABLE expenses (
+            id TEXT PRIMARY KEY NOT NULL,
+            group_id TEXT NOT NULL REFERENCES groups(id),
+            paid_by TEXT NOT NULL REFERENCES users(id),
+            title TEXT NOT NULL,
+            amount_minor INTEGER NOT NULL CHECK (amount_minor > 0),
+            currency TEXT NOT NULL,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL,
+            deleted_at INTEGER
+        );
+
+        CREATE INDEX expenses_group ON expenses(group_id, created_at);
+
+        CREATE TABLE expense_splits (
+            id TEXT PRIMARY KEY NOT NULL,
+            expense_id TEXT NOT NULL REFERENCES expenses(id),
+            user_id TEXT NOT NULL REFERENCES users(id),
+            amount_minor INTEGER NOT NULL CHECK (amount_minor >= 0),
+            UNIQUE (expense_id, user_id)
+        );
+
+        CREATE INDEX expense_splits_expense ON expense_splits(expense_id);
+        """,
     ]
 
     static func migrate(_ connection: OpaquePointer) throws {
