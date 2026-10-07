@@ -115,7 +115,7 @@ Synchronization status is derived from the outbox, not stored on each entity.
 ## Preventing Duplicated Balance Truth
 
 - There is **no balance table or column**. Net balances are computed on demand from `Expense` and `ExpenseSplit`.
-- Expense splits are the only record of who owes what. The expense `amountMinor` must always equal the sum of its splits, enforced by the Domain layer before writing and checked by tests.
+- Expense splits are the only record of who owes what, and they belong to the expense aggregate: they have no sync metadata of their own and travel with their expense (see `backend.md`). The expense `amountMinor` must always equal the sum of its splits, enforced by the Domain layer before writing and checked by tests.
 - Settlement suggestions are derived from balances and never stored.
 - Soft-deleted expenses are excluded from every derivation.
 

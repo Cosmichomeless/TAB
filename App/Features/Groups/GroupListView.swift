@@ -4,6 +4,7 @@ import TABCore
 struct GroupListView: View {
     @Environment(AppModel.self) private var model
     @State private var showingNewGroup = false
+    @State private var showingAccount = false
 
     var body: some View {
         List(model.groups) { group in
@@ -22,9 +23,15 @@ struct GroupListView: View {
         .navigationTitle("Groups")
         .navigationDestination(for: ExpenseGroup.self) { GroupDetailView(group: $0) }
         .toolbar {
-            Button("New group", systemImage: "plus") { showingNewGroup = true }
+            ToolbarItem(placement: .topBarLeading) {
+                Button("Account", systemImage: "person.crop.circle") { showingAccount = true }
+            }
+            ToolbarItem(placement: .primaryAction) {
+                Button("New group", systemImage: "plus") { showingNewGroup = true }
+            }
         }
         .sheet(isPresented: $showingNewGroup) { NewGroupView() }
+        .sheet(isPresented: $showingAccount) { AccountView() }
     }
 }
 

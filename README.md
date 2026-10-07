@@ -476,6 +476,8 @@ Instead, the project should demonstrate:
 
 🚧 **In development**
 
-Current stage:
+- Phases 1–6 done: product definition, offline-first architecture, data model, SQLite persistence, local app (groups, expenses, equal split) and balance engine. `swift test` runs the domain, repository and balance tests.
+- Phase 7 (backend & authentication): Supabase schema, row level security and RPCs in `supabase/` (`supabase/tests/run.sh` validates them on a local Postgres), plus the auth client in `Sources/TABCore/Remote`. See [docs/architecture/backend.md](docs/architecture/backend.md).
+- Next: synchronization protocol and engine.
 
-**Phase 1 — Product Definition**
+Backend configuration is injected per build (`SUPABASE_URL`, `SUPABASE_ANON_KEY`); without it the app runs fully offline.
