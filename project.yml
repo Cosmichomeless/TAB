@@ -1,0 +1,28 @@
+name: TAB
+options:
+  bundleIdPrefix: com.cosmichomeless
+  deploymentTarget:
+    iOS: "17.0"
+packages:
+  TABCore:
+    path: .
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+targets:
+  TAB:
+    type: application
+    platform: iOS
+    sources:
+      - App
+    dependencies:
+      - package: TABCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.cosmichomeless.TAB
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_CFBundleDisplayName: TAB
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: UIInterfaceOrientationPortrait
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
