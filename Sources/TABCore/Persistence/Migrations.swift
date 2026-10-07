@@ -58,6 +58,64 @@ enum Migrator {
 
         CREATE INDEX expense_splits_expense ON expense_splits(expense_id);
         """,
+        // 3 — synchronization: server versions, outbox, pull cursor and conflicts
+        """
+        ALTER TABLE users ADD COLUMN version INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE users ADD COLUMN server_seq INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE groups ADD COLUMN version INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE groups ADD COLUMN server_seq INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE groups ADD COLUMN invite_code TEXT;
+        ALTER TABLE group_members ADD COLUMN version INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE group_members ADD COLUMN server_seq INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE expenses ADD COLUMN version INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE expenses ADD COLUMN server_seq INTEGER NOT NULL DEFAULT 0;
+
+        CREATE TABLE pending_operation (
+            seq INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT NOT NULL UNIQUE,
+            kind TEXT NOT NULL,
+            entity_id TEXT NOT NULL,
+            group_id TEXT,
+            payload TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending'
+                CHECK (status IN ('pending', 'sending', 'failed', 'rejected', 'conflict', 'done')),
+            attempts INTEGER NOT NULL DEFAULT 0,
+            next_attempt_at INTEGER NOT NULL DEFAULT 0,
+            last_error TEXT,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL
+        );
+
+        CREATE INDEX pending_operation_status ON pending_operation(status, seq);
+        CREATE INDEX pending_operation_entity ON pending_operation(entity_id);
+
+        CREATE TABLE sync_state (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            cursor INTEGER NOT NULL DEFAULT 0,
+            account_id TEXT,
+            last_pulled_at INTEGER,
+            last_pushed_at INTEGER,
+            last_error TEXT
+        );
+
+        INSERT INTO sync_state (id) VALUES (1);
+
+        CREATE TABLE conflict (
+            id TEXT PRIMARY KEY NOT NULL,
+            operation_id TEXT NOT NULL,
+            entity_type TEXT NOT NULL,
+            entity_id TEXT NOT NULL,
+            local_payload TEXT NOT NULL,
+            remote_payload TEXT,
+            remote_version INTEGER,
+            status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'resolved')),
+            resolution TEXT,
+            created_at INTEGER NOT NULL,
+            resolved_at INTEGER
+        );
+
+        CREATE INDEX conflict_entity ON conflict(entity_id, status);
+        """,
     ]
 
     static func migrate(_ connection: OpaquePointer) throws {

@@ -12,10 +12,12 @@ public struct SQLiteGroupRepository: GroupRepository, UserRepository {
 
     public func createUser(name: String, email: String?) async throws -> User {
         let user = User(name: try Self.validName(name), email: try Self.validEmail(email))
-        try await database.execute(
-            "INSERT INTO users (id, name, email, created_at) VALUES (?, ?, ?, ?)",
-            [.text(user.id.uuidString), .text(user.name), Self.value(user.email), .int(user.createdAt.millisecondsSince1970)]
-        )
+        try await database.transaction { db in
+            try Self.insertUser(user, in: db)
+            try OutboxStore.enqueue(
+                .claimUser, entityID: user.id, groupID: nil, payload: UpsertParticipantPayload(user: user), in: db
+            )
+        }
         return user
     }
 
@@ -36,6 +38,9 @@ public struct SQLiteGroupRepository: GroupRepository, UserRepository {
                     .text(group.id.uuidString), .text(group.name), .text(group.currency.code),
                     .text(createdBy.uuidString), .int(group.createdAt.millisecondsSince1970),
                 ]
+            )
+            try OutboxStore.enqueue(
+                .createGroup, entityID: group.id, groupID: group.id, payload: CreateGroupPayload(group: group), in: db
             )
             try Self.insertMember(userID: createdBy, groupID: group.id, in: db)
         }
@@ -69,9 +74,9 @@ public struct SQLiteGroupRepository: GroupRepository, UserRepository {
             guard !(try db.query("SELECT 1 FROM groups WHERE id = ?", [.text(groupID.uuidString)])).isEmpty else {
                 throw DomainError.groupNotFound(groupID)
             }
-            try db.execute(
-                "INSERT INTO users (id, name, email, created_at) VALUES (?, ?, ?, ?)",
-                [.text(user.id.uuidString), .text(user.name), Self.value(user.email), .int(user.createdAt.millisecondsSince1970)]
+            try Self.insertUser(user, in: db)
+            try OutboxStore.enqueue(
+                .upsertParticipant, entityID: user.id, groupID: groupID, payload: UpsertParticipantPayload(user: user), in: db
             )
             try Self.insertMember(userID: user.id, groupID: groupID, in: db)
         }
@@ -90,8 +95,19 @@ public struct SQLiteGroupRepository: GroupRepository, UserRepository {
         }
     }
 
+    private static func insertUser(_ user: User, in db: isolated Database) throws {
+        try db.execute(
+            "INSERT INTO users (id, name, email, created_at) VALUES (?, ?, ?, ?)",
+            [.text(user.id.uuidString), .text(user.name), Self.value(user.email), .int(user.createdAt.millisecondsSince1970)]
+        )
+    }
+
+    /// Inserts the membership and queues it for the backend, in the caller's transaction.
     private static func insertMember(userID: UUID, groupID: UUID, in db: isolated Database) throws {
         let member = GroupMember(groupID: groupID, userID: userID)
+        try OutboxStore.enqueue(
+            .addMember, entityID: member.id, groupID: groupID, payload: AddMemberPayload(member: member), in: db
+        )
         try db.execute(
             "INSERT INTO group_members (id, group_id, user_id, created_at) VALUES (?, ?, ?, ?)",
             [
