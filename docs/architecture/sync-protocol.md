@@ -89,15 +89,22 @@ Classification of a failure (`FailureClass.classify`):
 
 Unknown errors are retried on purpose: losing a user's data is worse than trying once more.
 
+Being **offline is not a failure of the operation**: it returns to `pending` without consuming an attempt or scheduling a backoff, and the cycle ends with outcome `offline`. A request cancelled mid-flight (`CancellationError`) is treated the same way.
+
+An operation whose payload this version cannot read is `rejected` (SQLSTATE `22023`) instead of being retried forever.
+
 Backoff is exponential: `min(300 s, 2 s × 2^(attempts − 1))`, no jitter yet. The engine also tries immediately when connectivity returns, when the app becomes active and after every local write, so backoff only governs repeated failures.
 
 ## Pull
 
 1. The device keeps a cursor in `sync_state.cursor` (the highest `server_seq` fully applied).
-2. It calls `pull_changes(p_since := cursor - overlap, p_limit, p_group_id)` until a page is shorter than the limit. Rows arrive as `(entity, server_seq, payload)`.
-3. Each page is applied in one transaction, then the cursor advances.
+2. It calls `pull_changes(p_since := max(0, cursor − overlap), p_limit, p_group_id)` until a page is shorter than the limit. Rows arrive as `(entity, server_seq, payload)`. Every page is fetched **before anything is written**.
+3. All pages are applied in **one local transaction** (users, groups, members, then expenses with their splits, so parents precede children) and the cursor advances in that same transaction. An interrupted or failed pull therefore changes nothing and the next one starts from the same cursor.
 4. A change is applied **only if its `version` is newer than the local one**, so applying is idempotent and re-pulling overlapping rows is harmless.
-5. **Entities with an unfinished local operation are not overwritten** by a pull. The remote state is kept for conflict resolution if the operation later turns out to conflict.
+5. **Entities with an unfinished local operation are skipped**, not overwritten. If that operation later conflicts, the conflict resolution (#13) refetches the remote state with a group snapshot (`pull_changes(0, …, group_id)`), so nothing needs to be kept aside here.
+6. A membership that arrives under a different id than a local row for the same `(group, user)` replaces the local row, unless that row still has unfinished operations (then it is skipped).
+
+Known limitation: a pull whose rows violate a local foreign key (for example a membership for a user the device cannot see) fails as a whole and does not advance the cursor, so it is retried on every cycle. The RLS policies make the visible set closed under these references, which is why this is documented instead of handled.
 
 ### Why the overlap
 
@@ -105,24 +112,40 @@ Backoff is exponential: `min(300 s, 2 s × 2^(attempts − 1))`, no jitter yet. 
 
 ### Snapshot
 
-A device with `cursor = 0` (new install, new member after `join_group`, or switched account) pulls from 0 per group (`p_group_id`) and thereby receives the full snapshot. If the signed-in account differs from `sync_state.account_id`, local sync tables are not reused: the engine refuses to sync until the user chooses to keep or discard local data.
+A device with `cursor = 0` (new install, new member after `join_group`) pulls from 0 and thereby receives the full snapshot; `p_group_id` limits it to one group.
+
+### Account binding
+
+The first successful `accountID()` is stored in `sync_state.account_id`. If a later cycle sees a different account, the engine returns `accountMismatch` and neither pushes nor pulls: mixing two accounts would upload one person's data into another's. The user must choose to discard the local data or sign back in with the original account.
 
 ## Push loop
 
 ```text
 recoverInterrupted()
+accountID() → bind to the account (mismatch stops here)
 loop:
-  batch = nextBatch()
+  batch = nextBatch()            # at most one eligible operation per group
+  drop operations already attempted in this cycle
   if batch is empty: break
   for op in batch:
       markSending(op)
       result = backend.send(op, baseVersion: local version)
       on ack:       apply returned version/server_seq + markDone   (one transaction)
-      on failure:   classify → markFailed / markUnauthenticated / markRejected / markConflict
-then pull
+      on offline:   markOffline, end the cycle
+      on 401:       markUnauthenticated, end the cycle
+      on failure:   classify → markFailed / markRejected / markConflict, continue with the next op
+then pull (only if the push ended normally)
 ```
 
-Push first, then pull, so that a pull never overwrites changes the device is about to send.
+Push first, then pull, so that a pull never overwrites changes the device is about to send. Each operation is attempted at most once per cycle, so a zero backoff cannot spin the loop.
+
+### Triggering and coalescing
+
+`SyncEngine` is an actor and the only component that talks to the backend. `sync()` can be called from anywhere (after a local write, on reconnection, when the app becomes active, when a backoff expires): a call made while a cycle is running does not start a parallel one, it asks for **one** extra cycle after the current one and returns that combined report. `SyncReport.nextRetryAt` tells a scheduler when the earliest `failed` operation becomes eligible.
+
+### Testing without a backend
+
+`InMemoryServer` reproduces the RPC rules (idempotency, versions, `40001`, membership based visibility, global sequence) and `InMemoryBackend` adds an online switch, a signed-out switch, scripted failures and "applied but the response was lost". `SyncEngineTests` run the real engine against them; `SupabaseBackendTests` check request mapping and error mapping against a stub HTTP transport.
 
 ## Guarantees and non-guarantees
 
