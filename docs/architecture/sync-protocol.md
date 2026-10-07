@@ -143,6 +143,29 @@ Push first, then pull, so that a pull never overwrites changes the device is abo
 
 `SyncEngine` is an actor and the only component that talks to the backend. `sync()` can be called from anywhere (after a local write, on reconnection, when the app becomes active, when a backoff expires): a call made while a cycle is running does not start a parallel one, it asks for **one** extra cycle after the current one and returns that combined report. `SyncReport.nextRetryAt` tells a scheduler when the earliest `failed` operation becomes eligible.
 
+### Scheduling and sync status in the UI
+
+`SyncScheduler` (an actor wrapping the engine) decides *when* to sync so views never do:
+
+| Trigger | Source |
+|---|---|
+| Local write (profile, group, participant, expense) | `AppModel` calls `requestSync()` after the local transaction commits; it returns immediately |
+| Connectivity restored | `NWPathMonitor` → `connectivityRestored()` |
+| App becomes active, sign in / out | `requestSync()` / `sessionChanged()` |
+| Backoff expires | wake-up at `nextRetryAt` |
+| Offline or unexpected failure | slow fallback poll (30 s) in case no signal arrives |
+| Not signed in / other account | no polling: waits for `sessionChanged()` |
+
+The scheduler deliberately does **not** observe `Database.changes()`: a cycle writes to the database, which would trigger another cycle.
+
+Writes are optimistic by construction: the UI reads SQLite, the repository commits the entity and its outbox row in one transaction, and the screen refreshes from `changes()`. The network is never on that path.
+
+What the UI shows is derived, never stored:
+
+- per row: `OutboxStore.statuses(of:)` (expenses) and `groupStatuses(of:)` (group list) → `SyncStatus` synced / pending / failed / conflict, shown as an icon with an accessibility label;
+- global: `SyncOverview(phase:summary:)` → one headline (local only, syncing, offline with N saved, sign in, N failed, N need attention, N waiting, synced). Problems outrank progress messages, except while a cycle runs.
+- Builds without a backend show "Local only" and no row badges, so nothing looks permanently "waiting".
+
 ### Testing without a backend
 
 `InMemoryServer` reproduces the RPC rules (idempotency, versions, `40001`, membership based visibility, global sequence) and `InMemoryBackend` adds an online switch, a signed-out switch, scripted failures and "applied but the response was lost". `SyncEngineTests` run the real engine against them; `SupabaseBackendTests` check request mapping and error mapping against a stub HTTP transport.

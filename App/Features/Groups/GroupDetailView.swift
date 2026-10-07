@@ -9,6 +9,7 @@ struct GroupDetailView: View {
     @State private var expenses: [Expense] = []
     @State private var balances: [Balance] = []
     @State private var settlements: [Settlement] = []
+    @State private var statuses: [UUID: SyncStatus] = [:]
     @State private var showingAddParticipant = false
     @State private var showingAddExpense = false
 
@@ -19,7 +20,7 @@ struct GroupDetailView: View {
                     Text("No expenses yet").foregroundStyle(.secondary)
                 }
                 ForEach(expenses) { expense in
-                    ExpenseRow(expense: expense, payer: members.first { $0.id == expense.paidBy })
+                    ExpenseRow(expense: expense, payer: members.first { $0.id == expense.paidBy }, status: statuses[expense.id])
                 }
             }
             Section("Balances") {
@@ -67,6 +68,10 @@ struct GroupDetailView: View {
         .sheet(isPresented: $showingAddParticipant) {
             AddParticipantView(group: group)
         }
+        .safeAreaInset(edge: .bottom) { SyncStatusBar() }
+        .task(id: model.syncRevision) {
+            statuses = await model.syncStatuses(of: expenses.map(\.id))
+        }
         .task {
             guard let repository = model.repository else { return }
             await reload(repository)
@@ -83,6 +88,7 @@ struct GroupDetailView: View {
             expenses = ledger.map(\.expense)
             balances = BalanceCalculator.balances(for: ledger, members: members.map(\.id))
             settlements = BalanceCalculator.settlements(for: balances)
+            statuses = await model.syncStatuses(of: expenses.map(\.id))
         }
     }
 
@@ -94,6 +100,8 @@ struct GroupDetailView: View {
 struct ExpenseRow: View {
     let expense: Expense
     let payer: User?
+    /// `nil` when sync is not available (nothing to show).
+    var status: SyncStatus?
 
     var body: some View {
         HStack {
@@ -106,6 +114,7 @@ struct ExpenseRow: View {
             Spacer()
             Text(expense.currency.format(minorUnits: expense.amountMinor))
                 .monospacedDigit()
+            if let status { SyncBadge(status: status) }
         }
     }
 }
@@ -138,7 +147,7 @@ struct AddParticipantView: View {
                     Button("Add") {
                         Task {
                             do {
-                                _ = try await model.repository?.addParticipant(name: name, email: email, to: group.id)
+                                try await model.addParticipant(name: name, email: email, to: group.id)
                                 dismiss()
                             } catch DomainError.invalidEmail {
                                 errorMessage = "Enter a valid email or leave it empty."
@@ -206,13 +215,12 @@ struct AddExpenseView: View {
     }
 
     private func save() async {
-        guard let repository = model.expenseRepository else { return }
         guard let amountMinor = group.currency.parse(minorUnits: amount), amountMinor > 0 else {
             errorMessage = "Enter a valid amount."
             return
         }
         do {
-            _ = try await repository.createExpense(
+            try await model.addExpense(
                 groupID: group.id, paidBy: payerID, title: title,
                 amountMinor: amountMinor, splitEquallyAmong: Array(selected)
             )
