@@ -47,6 +47,16 @@ public protocol ExpenseRepository: Sendable {
         shares: [SplitShare]
     ) async throws -> Expense
 
+    /// Edits a live expense: payer, title, amount and shares are replaced together, and one operation carries
+    /// the new state to the backend. The same rules as `createExpense` apply.
+    func updateExpense(
+        id: UUID,
+        paidBy: UUID,
+        title: String,
+        amountMinor: Int64,
+        shares: [SplitShare]
+    ) async throws -> Expense
+
     /// Live (not deleted) expenses of a group, newest first.
     func expenses(in groupID: UUID) async throws -> [Expense]
 

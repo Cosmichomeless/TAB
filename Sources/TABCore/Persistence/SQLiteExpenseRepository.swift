@@ -78,6 +78,69 @@ public struct SQLiteExpenseRepository: ExpenseRepository {
         }
     }
 
+    public func updateExpense(
+        id: UUID,
+        paidBy: UUID,
+        title: String,
+        amountMinor: Int64,
+        shares: [SplitShare]
+    ) async throws -> Expense {
+        let title = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty else { throw DomainError.emptyTitle }
+        guard amountMinor > 0 else { throw DomainError.invalidAmount }
+        guard !shares.isEmpty else { throw DomainError.noParticipants }
+
+        var seen = Set<UUID>()
+        for share in shares {
+            guard seen.insert(share.userID).inserted else { throw DomainError.duplicateParticipant(share.userID) }
+            guard share.amountMinor >= 0 else { throw DomainError.invalidAmount }
+        }
+        let total = shares.reduce(Int64(0)) { $0 + $1.amountMinor }
+        guard total == amountMinor else {
+            throw DomainError.splitsDoNotMatchAmount(expected: amountMinor, actual: total)
+        }
+
+        return try await database.transaction { db in
+            guard let row = try db.query(
+                "SELECT * FROM expenses WHERE id = ? AND deleted_at IS NULL", [.text(id.uuidString)]
+            ).first else {
+                throw DomainError.expenseNotFound(id)
+            }
+            let groupID = row.uuid("group_id")
+            for userID in [paidBy] + shares.map(\.userID) {
+                try Self.requireMember(userID, of: groupID, in: db)
+            }
+
+            let now = Date().millisecondsSince1970
+            try db.execute(
+                "UPDATE expenses SET paid_by = ?, title = ?, amount_minor = ?, updated_at = ? WHERE id = ?",
+                [.text(paidBy.uuidString), .text(title), .int(amountMinor), .int(now), .text(id.uuidString)]
+            )
+            // Splits are replaced with their expense; keeping the ids of people who stay in keeps the diff small.
+            let previous = try db.query("SELECT * FROM expense_splits WHERE expense_id = ?", [.text(id.uuidString)])
+                .map(Self.split)
+            try db.execute("DELETE FROM expense_splits WHERE expense_id = ?", [.text(id.uuidString)])
+            let splits = shares.map { share in
+                ExpenseSplit(
+                    id: previous.first { $0.userID == share.userID }?.id ?? UUID(),
+                    expenseID: id, userID: share.userID, amountMinor: share.amountMinor
+                )
+            }
+            for split in splits {
+                try db.execute(
+                    "INSERT INTO expense_splits (id, expense_id, user_id, amount_minor) VALUES (?, ?, ?, ?)",
+                    [.text(split.id.uuidString), .text(id.uuidString), .text(split.userID.uuidString), .int(split.amountMinor)]
+                )
+            }
+            let updated = Self.expense(try db.query("SELECT * FROM expenses WHERE id = ?", [.text(id.uuidString)])[0])
+            try OutboxStore.enqueue(
+                .upsertExpense, entityID: id, groupID: groupID,
+                payload: UpsertExpensePayload(expense: updated, splits: splits), in: db
+            )
+            return updated
+        }
+    }
+
     public func expenses(in groupID: UUID) async throws -> [Expense] {
         try await database.query(
             """

@@ -18,6 +18,13 @@ public struct Currency: Hashable, Sendable {
         return amount.formatted(.currency(code: code))
     }
 
+    /// Plain decimal for an editable amount field, independent of device locale.
+    public func input(minorUnits: Int64) -> String {
+        guard minorUnitDigits > 0 else { return String(minorUnits) }
+        let scale = (0..<minorUnitDigits).reduce(Int64(1)) { value, _ in value * 10 }
+        return String(minorUnits / scale) + "." + String(minorUnits % scale).leftPadded(to: minorUnitDigits)
+    }
+
     /// Parses user input such as "12.5" or "12,50" into minor units. Returns `nil` for anything that is
     /// not a plain positive decimal with at most `minorUnitDigits` decimals.
     public func parse(minorUnits text: String) -> Int64? {
@@ -45,6 +52,12 @@ public struct Currency: Hashable, Sendable {
             return nil
         }
         self = match
+    }
+}
+
+private extension String {
+    func leftPadded(to width: Int) -> String {
+        String(repeating: "0", count: max(0, width - count)) + self
     }
 }
 
