@@ -18,6 +18,22 @@ public struct Currency: Hashable, Sendable {
         return amount.formatted(.currency(code: code))
     }
 
+    /// Parses user input such as "12.5" or "12,50" into minor units. Returns `nil` for anything that is
+    /// not a plain positive decimal with at most `minorUnitDigits` decimals.
+    public func parse(minorUnits text: String) -> Int64? {
+        let normalized = text.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: ",", with: ".")
+        let parts = normalized.split(separator: ".", omittingEmptySubsequences: false)
+        guard parts.count <= 2, let whole = parts.first, !whole.isEmpty,
+              whole.allSatisfy(\.isASCII), whole.allSatisfy(\.isNumber) else { return nil }
+        let fraction = parts.count == 2 ? String(parts[1]) : ""
+        guard fraction.count <= minorUnitDigits, fraction.allSatisfy(\.isASCII), fraction.allSatisfy(\.isNumber) else {
+            return nil
+        }
+        let padded = fraction.padding(toLength: minorUnitDigits, withPad: "0", startingAt: 0)
+        guard let value = Int64(whole + padded) else { return nil }
+        return value
+    }
+
     private init(uncheckedCode: String, minorUnitDigits: Int) {
         self.code = uncheckedCode
         self.minorUnitDigits = minorUnitDigits
