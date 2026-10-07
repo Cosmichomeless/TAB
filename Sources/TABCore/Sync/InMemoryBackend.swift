@@ -285,6 +285,8 @@ public actor InMemoryServer {
 public actor InMemoryBackend: RemoteBackend {
     /// Something that goes wrong with a call to `send`.
     public enum Fault: Sendable, Equatable {
+        /// The call goes through. Lets a script place a failure after several good calls.
+        case succeed
         /// The request fails before the server sees it.
         case fail(RemoteError)
         /// The server applies the operation but the response never arrives: the device sees `offline`.
@@ -324,6 +326,7 @@ public actor InMemoryBackend: RemoteBackend {
         var lostResponse = false
         if !faults.isEmpty {
             switch faults.removeFirst() {
+            case .succeed: break
             case .fail(let error): throw error
             case .loseResponse: lostResponse = true
             }

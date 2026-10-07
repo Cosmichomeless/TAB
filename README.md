@@ -482,6 +482,7 @@ Instead, the project should demonstrate:
 - Phase 9 (sync engine): `SyncEngine` (push, pull, recovery, backoff, account binding), `SupabaseBackend` over the RPCs and an in-memory server with fault injection for tests.
 - Phase 10 (optimistic updates): local writes show up immediately and request a sync without waiting for it (`SyncScheduler`); a status bar and per-row badges show synced, waiting, failed or conflict without blocking any flow. See [sync protocol](docs/architecture/sync-protocol.md#scheduling-and-sync-status-in-the-ui).
 - Phase 11 (conflict resolution): [conflict policy](docs/architecture/conflict-policy.md). Concurrent edits of an expense are detected by version; by default the server's version wins and the losing change stays recorded and can be restored (`ConflictResolver`). There is no UI to review or restore it yet.
-- Next: two-device and adverse-network tests.
+- Phases 12–13 (multi-device and reliability tests): `SyncResilienceTests` run two devices against the in-memory server through concurrent offline edits, connection loss mid-push, failing pulls, restarts, duplicate deliveries, server failures and 12 seeded random schedules, and assert that devices and server converge. See [two devices and a hostile network](docs/architecture/sync-protocol.md#two-devices-and-a-hostile-network).
+- Next: coverage of domain, balance and sync logic, then the offline architecture document.
 
 Backend configuration is injected per build (`SUPABASE_URL`, `SUPABASE_ANON_KEY`); without it the app runs fully offline.
