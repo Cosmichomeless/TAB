@@ -19,11 +19,19 @@ final class AppModel {
     private(set) var groups: [ExpenseGroup] = []
     private(set) var repository: SQLiteGroupRepository?
     private(set) var expenseRepository: SQLiteExpenseRepository?
+    /// `nil` when no Supabase URL/key was injected at build time: the app then runs purely offline.
+    private let auth: AuthClient? = SupabaseConfig(bundle: .main).map {
+        AuthClient(config: $0, store: KeychainSessionStore())
+    }
+    private(set) var session: AuthSession?
+
+    var isBackendConfigured: Bool { auth != nil }
 
     private static let currentUserKey = "currentUserID"
 
     func start() async {
         guard repository == nil else { return }
+        session = try? await auth?.currentSession()
         do {
             let database = try Database(path: try Self.databaseURL().path)
             let repository = SQLiteGroupRepository(database: database)
@@ -45,6 +53,21 @@ final class AppModel {
         } catch {
             state = .failed(error.localizedDescription)
         }
+    }
+
+    func signUp(email: String, password: String) async throws {
+        guard let auth else { throw AuthError.notConfigured }
+        session = try await auth.signUp(email: email, password: password)
+    }
+
+    func signIn(email: String, password: String) async throws {
+        guard let auth else { throw AuthError.notConfigured }
+        session = try await auth.signIn(email: email, password: password)
+    }
+
+    func signOut() async {
+        await auth?.signOut()
+        session = nil
     }
 
     func createProfile(name: String) async throws {

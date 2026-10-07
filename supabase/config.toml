@@ -1,0 +1,17 @@
+# Local Supabase stack (`supabase start`). Hosted projects are configured in the dashboard.
+project_id = "tab"
+
+[api]
+port = 54321
+
+[db]
+port = 54322
+major_version = 15
+
+[auth]
+enabled = true
+site_url = "http://127.0.0.1:3000"
+
+[auth.email]
+enable_signup = true
+enable_confirmations = false

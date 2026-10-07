@@ -17,8 +17,16 @@ targets:
       - App
     dependencies:
       - package: TABCore
+    info:
+      path: App/Info.plist
+      properties:
+        SupabaseURL: $(SUPABASE_URL)
+        SupabaseAnonKey: $(SUPABASE_ANON_KEY)
     settings:
       base:
+        # Injected per build (`xcodebuild SUPABASE_URL=... SUPABASE_ANON_KEY=...`); empty means offline only.
+        SUPABASE_URL: ""
+        SUPABASE_ANON_KEY: ""
         PRODUCT_BUNDLE_IDENTIFIER: com.cosmichomeless.TAB
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
