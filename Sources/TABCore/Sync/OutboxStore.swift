@@ -64,6 +64,21 @@ public struct OutboxStore: Sendable {
         try await update(id, status: .done, error: nil, attemptsDelta: 0, nextAttempt: nil)
     }
 
+    /// The backend acknowledged the operation: stores the server-owned `version`/`server_seq` on the entity
+    /// and finishes the operation in one transaction, so a crash can never leave one without the other.
+    public func markDone(_ operation: PendingOperation, ack: RemoteAck) async throws {
+        try await database.transaction { db in
+            try Self.applyAck(ack, for: operation, in: db)
+            try Self.setStatus(operation.id, .done, error: nil, attemptsDelta: 0, nextAttempt: nil, in: db)
+        }
+    }
+
+    /// The request may not have reached the backend (no connection). Goes back to `pending` without
+    /// consuming an attempt: being offline is not a failure of the operation.
+    public func markOffline(_ id: UUID) async throws {
+        try await update(id, status: .pending, error: "offline", attemptsDelta: 0, nextAttempt: nil)
+    }
+
     /// A transient failure: schedule the next attempt with exponential backoff.
     @discardableResult
     public func markFailed(_ id: UUID, error: String, now: Date = Date()) async throws -> Date {
@@ -85,6 +100,30 @@ public struct OutboxStore: Sendable {
 
     public func markConflict(_ id: UUID, error: String) async throws {
         try await update(id, status: .conflict, error: error, attemptsDelta: 0, nextAttempt: nil)
+    }
+
+    /// The entity changed remotely since the operation's base version. Records what both sides had so the
+    /// conflict can be resolved later, and holds the operation back.
+    public func markConflict(_ operation: PendingOperation, remoteVersion: Int64?, error: String) async throws {
+        try await database.transaction { db in
+            let alreadyOpen = !(try db.query(
+                "SELECT 1 FROM conflict WHERE operation_id = ? AND status = 'open'", [.text(operation.id.uuidString)]
+            )).isEmpty
+            if !alreadyOpen {
+                try db.execute(
+                    """
+                    INSERT INTO conflict (id, operation_id, entity_type, entity_id, local_payload, remote_version, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    [
+                        .text(UUID().uuidString), .text(operation.id.uuidString), .text(Self.entityType(of: operation.kind)),
+                        .text(operation.entityID.uuidString), .text(String(decoding: operation.payload, as: UTF8.self)),
+                        remoteVersion.map { .int($0) } ?? .null, .int(Date().millisecondsSince1970),
+                    ]
+                )
+            }
+            try Self.setStatus(operation.id, .conflict, error: error, attemptsDelta: 0, nextAttempt: nil, in: db)
+        }
     }
 
     /// Puts a `rejected` or `conflict` operation back in the queue (user retry or conflict resolved by resending).
@@ -121,6 +160,12 @@ public struct OutboxStore: Sendable {
                 .map(Self.operation)
         }
         return try await database.query("SELECT * FROM pending_operation ORDER BY seq").map(Self.operation)
+    }
+
+    /// When the earliest `failed` operation becomes eligible again, so a scheduler knows when to wake up.
+    public func nextRetryDate() async throws -> Date? {
+        try await database.query("SELECT MIN(next_attempt_at) AS next FROM pending_operation WHERE status = 'failed'")
+            .first?.optionalInt("next").map { Date(timeIntervalSince1970: Double($0) / 1000) }
     }
 
     /// Statuses of the given entities. Entities without unfinished operations are `synced`.
@@ -164,8 +209,16 @@ public struct OutboxStore: Sendable {
     private func update(
         _ id: UUID, status: OperationStatus, error: String?, attemptsDelta: Int, nextAttempt: Date?
     ) async throws {
-        let now = Date().millisecondsSince1970
-        try await database.execute(
+        try await database.transaction { db in
+            try Self.setStatus(id, status, error: error, attemptsDelta: attemptsDelta, nextAttempt: nextAttempt, in: db)
+        }
+    }
+
+    private static func setStatus(
+        _ id: UUID, _ status: OperationStatus, error: String?, attemptsDelta: Int, nextAttempt: Date?,
+        in db: isolated Database
+    ) throws {
+        try db.execute(
             """
             UPDATE pending_operation
             SET status = ?, last_error = ?, attempts = attempts + ?, updated_at = ?,
@@ -173,10 +226,38 @@ public struct OutboxStore: Sendable {
             WHERE id = ?
             """,
             [
-                .text(status.rawValue), error.map { .text($0) } ?? .null, .int(Int64(attemptsDelta)), .int(now),
-                nextAttempt.map { .int($0.millisecondsSince1970) } ?? .null, .text(id.uuidString),
+                .text(status.rawValue), error.map { .text($0) } ?? .null, .int(Int64(attemptsDelta)),
+                .int(Date().millisecondsSince1970), nextAttempt.map { .int($0.millisecondsSince1970) } ?? .null,
+                .text(id.uuidString),
             ]
         )
+    }
+
+    private static func applyAck(_ ack: RemoteAck, for operation: PendingOperation, in db: isolated Database) throws {
+        let table: String
+        switch operation.kind {
+        case .claimUser, .upsertParticipant: table = "users"
+        case .createGroup: table = "groups"
+        case .addMember: table = "group_members"
+        case .upsertExpense: table = "expenses"
+        }
+        // max(): a replayed acknowledgement must never move an entity backwards.
+        try db.execute(
+            "UPDATE \(table) SET version = max(version, ?), server_seq = max(server_seq, ?) WHERE id = ?",
+            [.int(ack.version), .int(ack.serverSeq), .text(operation.entityID.uuidString)]
+        )
+        if operation.kind == .createGroup, let code = ack.inviteCode {
+            try db.execute("UPDATE groups SET invite_code = ? WHERE id = ?", [.text(code.uuidString), .text(operation.entityID.uuidString)])
+        }
+    }
+
+    static func entityType(of kind: OperationKind) -> String {
+        switch kind {
+        case .claimUser, .upsertParticipant: "user"
+        case .createGroup: "group"
+        case .addMember: "group_member"
+        case .upsertExpense: "expense"
+        }
     }
 
     private static func operation(_ row: Row) -> PendingOperation {
