@@ -170,6 +170,22 @@ What the UI shows is derived, never stored:
 
 `InMemoryServer` reproduces the RPC rules (idempotency, versions, `40001`, membership based visibility, global sequence) and `InMemoryBackend` adds an online switch, a signed-out switch, scripted failures and "applied but the response was lost". `SyncEngineTests` run the real engine against them; `SupabaseBackendTests` check request mapping and error mapping against a stub HTTP transport.
 
+### Two devices and a hostile network
+
+`SyncResilienceTests` put two devices of one account on one `InMemoryServer` and check, after every scenario, that both devices and the server hold the same expenses, the same splits and versions, the same balances, no open conflict and no rejected operation. `settle` lets time pass (so backoff expires) and syncs every device until a full round changes nothing.
+
+| Condition | Scenario |
+| --- | --- |
+| Concurrent changes | both devices write offline and reconnect; a delete races an edit of the same expense |
+| Connection loss | the link drops after three acknowledged operations; another device sees a valid prefix, then the rest arrives |
+| Partial sync | a pull keeps failing (503) with small pages; nothing is applied and the cursor does not move; pushes still go out |
+| Restart | the app dies with every operation `sending` and the server already holding them; the app dies after a lost response |
+| Duplicate operations | every operation is applied and its acknowledgement lost, again and again |
+| Server failures | 503, 429, 500, lost responses and offline mixed in one sequence; expired session; a permanently rejected group does not stop others |
+| Random | 12 seeded schedules of 40 steps (writes, deletes, server edits, going offline, signing out, faults, failing pulls) on two devices |
+
+The random schedules use a fixed generator, so a failing seed replays exactly. Mutating the applier (ignoring `deleted_at` on pull) makes the suite fail, which is how the checks were validated.
+
 ## Guarantees and non-guarantees
 
 - **No duplicate expenses.** Same operation, same entity ID: the second delivery is a no-op on the server.
