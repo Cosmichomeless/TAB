@@ -1,499 +1,99 @@
+<div align="center">
+
 # TAB
 
-> Offline-first native iOS expense splitting application with local persistence, optimistic updates, synchronization, and explicit conflict handling.
+**Split group expenses offline and see exactly what each person owes.**
+
+![Status: MVP, no public backend](https://img.shields.io/badge/status-MVP%20local%20demo-yellow) ![SwiftUI](https://img.shields.io/badge/SwiftUI-iOS-teal) ![License: MIT](https://img.shields.io/badge/license-MIT-green)
+
+[Try it](#try-it) · [Screenshots](#screenshots) · [Architecture](#architecture) · [Documentation](#documentation)
+
+</div>
+
+TAB is a native iOS expense-sharing app whose local SQLite database is the source of truth. Groups, participants, expenses, balances and settlements work without a connection; the optional sync engine records local changes and handles version conflicts. There is no hosted backend or public demo.
+
+## What it includes
+
+- **Offline-first groups:** create a group, add people and record expenses without waiting for a server.
+- **Exact balances:** amounts use integer minor units; equal splits distribute remainders deterministically.
+- **Safe editing:** edit a shared expense while preserving an existing unequal split unless the amount or participants change.
+- **Visible sync state:** pending, synced, failed and conflicted changes have explicit UI states.
+- **Conflict review:** compare the payer, shares and deletion state before restoring a losing edit.
+
+## Try it
+
+On a Mac with Xcode and [XcodeGen](https://github.com/yonaskolb/XcodeGen), run this from the repository root, then choose the TAB scheme and an iPhone simulator in Xcode. No Supabase credentials are needed for the local experience.
+
+    xcodegen generate && open TAB.xcodeproj
+
+The Xcode project is generated locally from [project.yml](project.yml) and is not committed. For a reproducible UI walkthrough, see [the demo guide](docs/release/demo.md); its screenshot script resets data in the selected simulator.
 
 ## Screenshots
 
-The offline flow, captured from a UI test on an iPhone 17 Pro simulator. More in [docs/release/demo.md](docs/release/demo.md).
+Captured with the Debug UI walkthrough on an iPhone 17e simulator using seeded sample groups. To regenerate the raw walkthrough images, run [docs/release/export-screenshots.sh](docs/release/export-screenshots.sh) with a suitable simulator; the four PNGs below are smaller, curated copies for GitHub.
 
-| Group | Add expense | Balances |
+| Welcome | Groups and balances |
+| --- | --- |
+| ![Teal TAB onboarding with name entry](docs/screenshots/01-onboarding.png) | ![Demo groups with balances and sync states](docs/screenshots/02-groups.png) |
+| **Group detail** | **Edit an expense** |
+| ![Lisbon trip expenses and conflict notice](docs/screenshots/03-group-detail.png) | ![Expense editing with payer and split participants](docs/screenshots/04-edit-expense.png) |
+
+## Architecture
+
+```mermaid
+flowchart LR
+    UI[SwiftUI] -->|Local reads and writes| DB[SQLite]
+    DB -->|Pending operations| Outbox[Outbox]
+    Outbox -->|Push and pull| Engine[Sync engine]
+    Engine -->|Optional authenticated RPCs| API[Supabase schema]
+```
+
+- **UI and storage:** local repositories provide immediate results, including while offline.
+- **Balance engine and outbox:** balances are derived from expenses; changes are queued transactionally.
+- **Sync boundary:** an optional configured backend receives versioned operations; conflict policy keeps the losing edit available for review.
+
+## Design decisions
+
+| Decision | Why | Cost |
 | --- | --- | --- |
-| ![New group](docs/release/screenshots/03-new-group.png) | ![Add expense](docs/release/screenshots/05-add-expense.png) | ![Expense and balances](docs/release/screenshots/06-expense-and-balances.png) |
-
-## Overview
-
-TAB is a native iOS bill-splitting application designed around an offline-first architecture.
-
-Users can create groups, add shared expenses, and calculate balances even without an internet connection.
-
-When connectivity becomes available again, local changes should synchronize with the backend and eventually reach other devices.
-
-The main purpose of TAB is not to build another Splitwise clone.
-
-The project exists to explore:
-
-- Offline-first architecture
-- Local databases
-- Synchronization
-- Optimistic UI
-- Conflict resolution
-- Distributed state
-- Data consistency
-- Swift Concurrency
-- Networking
-
-## Product Example
-
-```text
-Lisbon Trip
-
-Members
-├── David
-├── Ana
-├── Marta
-└── Bruno
-
-Expenses
-├── Airbnb      €640
-├── Dinner      €186.40
-└── Taxi         €22.80
-```
-
-TAB should determine each participant's net balance and suggest how debts can be settled.
-
-## Core Principle
-
-The application should not depend on the network for normal interaction.
-
-Traditional architecture:
-
-```text
-UI
- ↓
-API
- ↓
-Server
- ↓
-Response
- ↓
-UI
-```
-
-TAB should instead follow an architecture conceptually similar to:
-
-```text
-SwiftUI
-   ↓
-Local Database
-   ↓
-Sync Engine
-   ↓
-Backend
-```
-
-The local database should act as the primary data source for the interface.
-
-## Tech Stack
-
-Initial technologies to evaluate and use:
-
-- **Language:** Swift
-- **UI:** SwiftUI
-- **Concurrency:** Swift Concurrency
-- **Local Persistence:** SQLite / SwiftData — architectural decision pending
-- **Backend:** Supabase
-- **Remote Database:** PostgreSQL
-- **Authentication:** Supabase Auth
-- **Testing:** Swift Testing / XCTest
-
-The synchronization strategy will be evaluated before committing to a specific implementation.
-
-Possible approaches include:
-
-- Custom synchronization layer
-- PowerSync
-- Supabase Realtime
-- Other compatible offline-first solutions
-
-The final decision should be documented and technically justified.
-
-## MVP
-
-The first version should support:
-
-- User registration
-- Login
-- Create group
-- Add participants
-- Create expense
-- Select payer
-- Select participants
-- Equal split
-- Balance calculation
-- Local persistence
-- Full basic functionality while offline
-- Optimistic updates
-- Synchronization after reconnection
-- Synchronization status
-- Group expense history
-
-## Domain Model
-
-### User
-
-```text
-User
-├── id
-├── name
-└── email
-```
-
-### Group
-
-```text
-Group
-├── id
-├── name
-├── createdBy
-└── createdAt
-```
-
-### GroupMember
-
-```text
-GroupMember
-├── id
-├── groupId
-└── userId
-```
-
-### Expense
-
-```text
-Expense
-├── id
-├── groupId
-├── paidBy
-├── title
-├── amount
-├── currency
-├── createdAt
-└── updatedAt
-```
-
-### ExpenseSplit
-
-```text
-ExpenseSplit
-├── id
-├── expenseId
-├── userId
-└── amount
-```
-
-The data model may evolve during the database design phase.
-
-## Balance Calculation
-
-Balances should be derived from source data whenever possible.
-
-```text
-Expenses
-    ↓
-Expense Splits
-    ↓
-Net User Balances
-    ↓
-Settlement Suggestions
-```
-
-Derived balances should not become unnecessary duplicated sources of truth.
-
-## Offline Workflow
-
-Example:
-
-```text
-Device goes offline
-       ↓
-User creates expense
-       ↓
-Expense stored locally
-       ↓
-UI updates immediately
-       ↓
-Change marked as pending
-       ↓
-Internet connection returns
-       ↓
-Sync engine processes change
-       ↓
-Server confirms operation
-       ↓
-Other devices receive update
-```
-
-From the user's perspective, creating an expense offline should feel almost identical to creating one online.
-
-## Synchronization States
-
-Local operations may have states similar to:
-
-```text
-Synced
-Pending
-Failed
-Conflict
-```
-
-The final model will depend on the synchronization architecture.
-
-## Conflict Resolution
-
-Conflict handling is one of the core engineering challenges.
-
-Example:
-
-```text
-David — Offline
-Dinner = €100
-
-Ana — Another device
-Dinner = €120
-
-       ↓
-
-Both synchronize
-```
-
-The system must define deterministic behavior.
-
-Topics to investigate include:
-
-- Last-write-wins
-- Server timestamps
-- Client timestamps
-- Version numbers
-- Optimistic concurrency
-- Conflict detection
-- Merge strategies
-- Idempotency
-- Server authority
-
-A simple strategy such as last-write-wins may be acceptable for the MVP, but its limitations must be understood and documented.
-
-## Optimistic UI
-
-The expected workflow should be:
-
-```text
-User action
-    ↓
-Local write
-    ↓
-Immediate UI update
-    ↓
-Background synchronization
-```
-
-The user should not wait for a remote server before seeing their own changes.
-
-## Swift Concurrency
-
-TAB should also be used to explore modern Swift concurrency.
-
-Relevant concepts include:
-
-- `async/await`
-- `Task`
-- `Actor`
-- `Sendable`
-- Task cancellation
-- Structured concurrency
-- Safe access to shared state
-
-Concurrency should be introduced where it solves real synchronization or networking problems rather than simply for demonstration.
-
-## Project Structure
-
-Initial direction:
-
-```text
-TAB/
-├── App/
-├── Features/
-│   ├── Authentication/
-│   ├── Groups/
-│   ├── Expenses/
-│   └── Balances/
-├── Domain/
-├── Persistence/
-├── Synchronization/
-├── Networking/
-├── Models/
-├── Services/
-└── Tests/
-```
-
-## Development Roadmap
-
-### Phase 1 — Product Definition
-
-Define:
-
-- Product scope
-- Groups
-- Expenses
-- Splits
-- Balances
-- User flows
-
-### Phase 2 — Offline-First Architecture
-
-Define:
-
-- Source of truth
-- Local writes
-- Sync boundaries
-- Repository architecture
-
-### Phase 3 — Relational Data Model
-
-Design:
-
-- Users
-- Groups
-- Memberships
-- Expenses
-- Expense splits
-
-### Phase 4 — Local Persistence
-
-Evaluate and choose between:
-
-- SwiftData
-- SQLite
-- Other justified native persistence strategies
-
-### Phase 5 — Local Application
-
-Build the core application without requiring a backend.
-
-Implement:
-
-- Groups
-- Members
-- Expenses
-- Equal splitting
-- Balances
-
-### Phase 6 — Balance Engine
-
-Implement and test balance calculations.
-
-### Phase 7 — Backend & Authentication
-
-Add:
-
-- Supabase
-- Authentication
-- PostgreSQL
-
-### Phase 8 — Synchronization Protocol
-
-Define:
-
-- Change representation
-- Pending operations
-- Server acknowledgement
-- Error handling
-- Versioning
-
-### Phase 9 — Sync Engine
-
-Implement synchronization between local and remote state.
-
-### Phase 10 — Optimistic Updates
-
-Ensure local actions are immediately reflected in the UI.
-
-### Phase 11 — Conflict Resolution
-
-Implement and document deterministic conflict behavior.
-
-### Phase 12 — Multi-Device Testing
-
-Test concurrent changes across multiple devices.
-
-### Phase 13 — Reliability
-
-Test:
-
-- Connectivity loss
-- Reconnection
-- App restart
-- Partial synchronization
-- Duplicate operations
-- Server failures
-
-### Phase 14 — Testing
-
-Add:
-
-- Domain tests
-- Balance tests
-- Synchronization tests
-- Conflict tests
-
-### Phase 15 — Documentation
-
-Document:
-
-- Offline-first architecture
-- Database model
-- Synchronization protocol
-- Conflict strategy
-- Technical trade-offs
-
-### Phase 16 — Release
-
-Prepare:
-
-- Demo
-- Screenshots
-- Architecture documentation
-- Release notes
-
-## Out of Scope
-
-The initial version will not include:
-
-- Payments
-- Bank integrations
-- Receipt OCR
-- Automatic currency conversion
-- Chat
-- Social networking
-- AI features
-- Advanced analytics
-- Complex split strategies
-
-The initial split strategy will focus on equal splitting.
-
-## Project Philosophy
-
-TAB should not be presented as:
-
-> A Splitwise clone.
-
-Instead, the project should demonstrate:
-
-> An offline-first native iOS application with local persistence, optimistic updates, multi-device synchronization, data consistency, and explicit conflict handling.
-
-## Status
-
-🚧 **In development**
-
-- Phases 1–6 done: product definition, offline-first architecture, data model, SQLite persistence, local app (groups, expenses, equal split) and balance engine. `swift test` runs the domain, repository and balance tests.
-- Phase 7 (backend & authentication): Supabase schema, row level security and RPCs in `supabase/` (`supabase/tests/run.sh` validates them on a local Postgres), plus the auth client in `Sources/TABCore/Remote`. See [docs/architecture/backend.md](docs/architecture/backend.md).
-- Phase 8 (synchronization protocol): [sync protocol](docs/architecture/sync-protocol.md), [ADR 0002](docs/architecture/adr-0002-sync-approach.md), the local outbox (`pending_operation`, `sync_state`, `conflict`) and its state machine in `Sources/TABCore/Sync`.
-- Phase 9 (sync engine): `SyncEngine` (push, pull, recovery, backoff, account binding), `SupabaseBackend` over the RPCs and an in-memory server with fault injection for tests.
-- Phase 10 (optimistic updates): local writes show up immediately and request a sync without waiting for it (`SyncScheduler`); a status bar and per-row badges show synced, waiting, failed or conflict without blocking any flow. See [sync protocol](docs/architecture/sync-protocol.md#scheduling-and-sync-status-in-the-ui).
-- Phase 11 (conflict resolution): [conflict policy](docs/architecture/conflict-policy.md). Concurrent edits of an expense are detected by version; by default the server's version wins and the losing change stays recorded and can be restored (`ConflictResolver`). There is no UI to review or restore it yet.
-- Phases 12–13 (multi-device and reliability tests): `SyncResilienceTests` run two devices against the in-memory server through concurrent offline edits, connection loss mid-push, failing pulls, restarts, duplicate deliveries, server failures and 12 seeded random schedules, and assert that devices and server converge. See [two devices and a hostile network](docs/architecture/sync-protocol.md#two-devices-and-a-hostile-network).
-- Phase 14 (coverage): 139 tests. Domain, persistence and sync code is at 94–100 % line coverage (`swift test --enable-code-coverage`); the exceptions are `HTTPTransport` (the thin `URLSession` wrapper, 0 %) and `Migrations` (86 %, the rollback path of a failing migration is not exercised). Equal splits, balances (including random ledgers that must sum to zero), repository validation, retry/backoff, unexpected backend errors, cancellation, member-id clashes and every `ConflictError` are asserted automatically.
-- Phase 15 (documentation): [offline architecture and trade-offs](docs/architecture/offline-architecture.md) consolidates the local and remote schemas, the sync protocol, the conflict rules, the choice of persistence and sync approach, the known limitations and what has and has not been verified.
-- Phase 16 (release): [demo guide](docs/release/demo.md), [release notes](docs/release/release-notes.md) and screenshots of the offline flow (regenerated with `docs/release/export-screenshots.sh`). The "create an expense offline, reconnect, see it on another device" scenario is demonstrated in a test against an in-memory server (`swift test --filter OfflineToOnlineDemoTests`), **not** against a real Supabase project, which was never set up.
-- Nothing further is planned.
-
-Backend configuration is injected per build (`SUPABASE_URL`, `SUPABASE_ANON_KEY`); without it the app runs fully offline.
+| **SQLite as source of truth instead of server-first requests** | Groups and balances respond offline. | Sync and recovery logic must be owned by the app. |
+| **Integer minor units instead of floating point** | Splits and balances stay exact. | Currency formatting and parsing need explicit rules. |
+| **Equal splits instead of arbitrary split editing** | Remainders are deterministic across devices. | Changing an amount or participant set replaces a custom split with an equal one. |
+| **Versioned outbox instead of last-write-wins silently** | A losing edit can be inspected and restored. | More state and conflict UI to maintain. |
+
+## Known limitations
+
+- No Supabase project is provisioned for a public demo. Multi-device convergence is verified against an in-memory server, not a live deployment.
+- Equal splitting is the creation flow; the editor preserves a pre-existing unequal split only while amount and participants stay the same.
+- Payments, bank connections, automatic currency conversion and receipt OCR are out of scope.
+- No tagged release or App Store build has been published. The [release notes](docs/release/release-notes.md) distinguish what was tested from what was not.
+
+## Quality
+
+- 149 Swift package tests pass across domain, persistence, balances, editing and sync; this is not a claim of production backend coverage.
+- UI walkthroughs exercise onboarding, offline expense entry and editing on an iPhone simulator. The conflict banner depends on the demo state and is not a deterministic screenshot assertion.
+- The offline-to-online two-device scenario runs against an in-memory backend. No hosted CI is claimed here.
+
+## Documentation
+
+| Document | Contents |
+| --- | --- |
+| [Product MVP](docs/product/mvp.md) | User flows and scope. |
+| [Offline architecture](docs/architecture/offline-architecture.md) | Storage, sync and trade-offs. |
+| [Data model](docs/architecture/data-model.md) | Users, expenses, splits and balances. |
+| [Sync protocol](docs/architecture/sync-protocol.md) | Outbox, retries and convergence. |
+| [Conflict policy](docs/architecture/conflict-policy.md) | Resolution and restoration. |
+| [Demo](docs/release/demo.md) · [Release notes](docs/release/release-notes.md) | Screenshots and validation boundaries. |
+
+## Repository layout
+
+    App/               SwiftUI screens and icon-driven theme
+    Sources/TABCore/   Domain, SQLite repositories and sync engine
+    Tests/             Domain, persistence and sync tests
+    UITests/           Simulator walkthroughs
+    supabase/          Schema and RPCs (not deployed for this demo)
+    docs/              Architecture decisions, demo and release evidence
+
+## Distribution and license
+
+No production backend or App Store version is deployed. Credentials are supplied per build if a developer configures their own backend. Licensed under [MIT](LICENSE).

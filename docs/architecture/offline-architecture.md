@@ -190,12 +190,13 @@ the core path; it could be added later as a *hint to pull sooner*, never as the 
 - A conflict is detected per expense, never per field.
 - The deletion timestamp comes from the device clock and the backend compares it exactly to detect a replay. Two
   devices deleting the same expense at different instants therefore register as a conflict rather than a duplicate.
-- There is no edit-expense screen yet, and no screen to review or restore a conflict that lost; both are exercised
-  through the resolver API and a test hook that edits the server directly.
+- The expense editor can preserve an existing unequal split when the amount and participants do not change;
+  changing either recalculates equal shares. The conflict review shows the fields that restoration will replace,
+  but its demo banner is not deterministically asserted by a UI test.
 
 ## 8. What has and has not been verified
 
-**Verified automatically** (`swift test`, 139 tests; `supabase/tests/run.sh`):
+**Verified automatically** (`swift test`, 149 tests; `supabase/tests/run.sh`):
 
 - Domain rules, equal splits and balances, including random ledgers that must sum to zero.
 - Persistence: repositories, migrations, transactions and rollback.
@@ -212,5 +213,5 @@ the core path; it could be added later as a *hint to pull sooner*, never as the 
 - The sync engine, scheduler, conflict policy and resilience tests only ever run against the in-memory fake, so any
   difference between it and the real server would go unnoticed.
 - `HTTPTransport` has no tests, and the rollback path of a failing migration is not exercised.
-- The UI was only exercised by hand as far as onboarding in the simulator; the status bar, row badges,
-  add-expense form, balances and account screens were not.
+- The simulator UI walkthrough exercises onboarding, group and expense entry, balances, account and expense editing.
+  A physical-device run, a real backend and a deterministic conflict-screen UI assertion remain unverified.
