@@ -340,6 +340,23 @@ struct SyncEngineTests {
         // Both delete it while offline. The backend sees the second request as a replay of the first.
         try await first.expenses.deleteExpense(id: expense.id)
         try await second.expenses.deleteExpense(id: expense.id)
+        // Deletions are stamped with the wall clock, and the backend compares the stamp to recognise a replay.
+        // Give both the same instant, or the test would depend on the two calls landing in one millisecond.
+        let deletedAt = try #require(
+            try await first.database.query("SELECT deleted_at FROM expenses WHERE id = ?", [.text(expense.id.uuidString)])
+                .first?.optionalInt("deleted_at")
+        )
+        try await second.database.execute(
+            "UPDATE expenses SET deleted_at = ?, updated_at = ? WHERE id = ?",
+            [.int(deletedAt), .int(deletedAt), .text(expense.id.uuidString)]
+        )
+        try await second.database.execute(
+            """
+            UPDATE pending_operation SET payload = json_set(payload, '$.deletedAt', ?, '$.updatedAt', ?)
+            WHERE entity_id = ? AND status = 'pending'
+            """,
+            [.int(deletedAt), .int(deletedAt), .text(expense.id.uuidString)]
+        )
         await second.engine.sync()
         let report = await first.engine.sync()
         await second.engine.sync()
