@@ -481,6 +481,7 @@ Instead, the project should demonstrate:
 - Phase 8 (synchronization protocol): [sync protocol](docs/architecture/sync-protocol.md), [ADR 0002](docs/architecture/adr-0002-sync-approach.md), the local outbox (`pending_operation`, `sync_state`, `conflict`) and its state machine in `Sources/TABCore/Sync`.
 - Phase 9 (sync engine): `SyncEngine` (push, pull, recovery, backoff, account binding), `SupabaseBackend` over the RPCs and an in-memory server with fault injection for tests.
 - Phase 10 (optimistic updates): local writes show up immediately and request a sync without waiting for it (`SyncScheduler`); a status bar and per-row badges show synced, waiting, failed or conflict without blocking any flow. See [sync protocol](docs/architecture/sync-protocol.md#scheduling-and-sync-status-in-the-ui).
-- Next: conflict resolution policy.
+- Phase 11 (conflict resolution): [conflict policy](docs/architecture/conflict-policy.md). Concurrent edits of an expense are detected by version; by default the server's version wins and the losing change stays recorded and can be restored (`ConflictResolver`). There is no UI to review or restore it yet.
+- Next: two-device and adverse-network tests.
 
 Backend configuration is injected per build (`SUPABASE_URL`, `SUPABASE_ANON_KEY`); without it the app runs fully offline.
