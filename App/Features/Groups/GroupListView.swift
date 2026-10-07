@@ -9,9 +9,13 @@ struct GroupListView: View {
     var body: some View {
         List(model.groups) { group in
             NavigationLink(value: group) {
-                VStack(alignment: .leading) {
-                    Text(group.name).font(.headline)
-                    Text(group.currency.code).font(.caption).foregroundStyle(.secondary)
+                HStack {
+                    VStack(alignment: .leading) {
+                        Text(group.name).font(.headline)
+                        Text(group.currency.code).font(.caption).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    if let status = model.groupStatuses[group.id] { SyncBadge(status: status) }
                 }
             }
         }
@@ -20,6 +24,7 @@ struct GroupListView: View {
                 ContentUnavailableView("No groups yet", systemImage: "person.3", description: Text("Create a group to start splitting expenses."))
             }
         }
+        .safeAreaInset(edge: .bottom) { SyncStatusBar() }
         .navigationTitle("Groups")
         .navigationDestination(for: ExpenseGroup.self) { GroupDetailView(group: $0) }
         .toolbar {

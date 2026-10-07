@@ -480,6 +480,7 @@ Instead, the project should demonstrate:
 - Phase 7 (backend & authentication): Supabase schema, row level security and RPCs in `supabase/` (`supabase/tests/run.sh` validates them on a local Postgres), plus the auth client in `Sources/TABCore/Remote`. See [docs/architecture/backend.md](docs/architecture/backend.md).
 - Phase 8 (synchronization protocol): [sync protocol](docs/architecture/sync-protocol.md), [ADR 0002](docs/architecture/adr-0002-sync-approach.md), the local outbox (`pending_operation`, `sync_state`, `conflict`) and its state machine in `Sources/TABCore/Sync`.
 - Phase 9 (sync engine): `SyncEngine` (push, pull, recovery, backoff, account binding), `SupabaseBackend` over the RPCs and an in-memory server with fault injection for tests.
-- Next: optimistic UI with sync status and conflict resolution.
+- Phase 10 (optimistic updates): local writes show up immediately and request a sync without waiting for it (`SyncScheduler`); a status bar and per-row badges show synced, waiting, failed or conflict without blocking any flow. See [sync protocol](docs/architecture/sync-protocol.md#scheduling-and-sync-status-in-the-ui).
+- Next: conflict resolution policy.
 
 Backend configuration is injected per build (`SUPABASE_URL`, `SUPABASE_ANON_KEY`); without it the app runs fully offline.

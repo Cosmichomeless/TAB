@@ -184,6 +184,24 @@ public struct OutboxStore: Sendable {
         return result
     }
 
+    /// Status of each group as the most severe status among the unfinished operations that belong to it.
+    /// Groups without unfinished operations are `synced`.
+    public func groupStatuses(of groupIDs: [UUID]) async throws -> [UUID: SyncStatus] {
+        var result = Dictionary(uniqueKeysWithValues: groupIDs.map { ($0, SyncStatus.synced) })
+        guard !groupIDs.isEmpty else { return result }
+        let marks = groupIDs.map { _ in "?" }.joined(separator: ",")
+        let rows = try await database.query(
+            "SELECT group_id, status FROM pending_operation WHERE status <> 'done' AND group_id IN (\(marks))",
+            groupIDs.map { .text($0.uuidString) }
+        )
+        for row in rows {
+            guard let status = OperationStatus(rawValue: row.text("status")) else { continue }
+            let id = row.uuid("group_id")
+            result[id] = max(result[id] ?? .synced, SyncStatus(operation: status))
+        }
+        return result
+    }
+
     public func summary() async throws -> SyncSummary {
         let rows = try await database.query(
             "SELECT status, COUNT(*) AS n FROM pending_operation WHERE status <> 'done' GROUP BY status"
