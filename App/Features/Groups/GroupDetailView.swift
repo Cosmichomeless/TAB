@@ -7,6 +7,8 @@ struct GroupDetailView: View {
 
     @State private var members: [User] = []
     @State private var expenses: [Expense] = []
+    @State private var balances: [Balance] = []
+    @State private var settlements: [Settlement] = []
     @State private var showingAddParticipant = false
     @State private var showingAddExpense = false
 
@@ -18,6 +20,28 @@ struct GroupDetailView: View {
                 }
                 ForEach(expenses) { expense in
                     ExpenseRow(expense: expense, payer: members.first { $0.id == expense.paidBy })
+                }
+            }
+            Section("Balances") {
+                ForEach(balances, id: \.userID) { balance in
+                    HStack {
+                        Text(name(of: balance.userID))
+                        Spacer()
+                        Text(group.currency.format(minorUnits: balance.netMinor))
+                            .monospacedDigit()
+                            .foregroundStyle(balance.netMinor < 0 ? .red : balance.netMinor > 0 ? .green : .secondary)
+                    }
+                }
+            }
+            if !settlements.isEmpty {
+                Section("Suggested settlements") {
+                    ForEach(settlements, id: \.self) { settlement in
+                        HStack {
+                            Text("\(name(of: settlement.from)) pays \(name(of: settlement.to))")
+                            Spacer()
+                            Text(group.currency.format(minorUnits: settlement.amountMinor)).monospacedDigit()
+                        }
+                    }
                 }
             }
             Section("Members") {
@@ -54,9 +78,16 @@ struct GroupDetailView: View {
 
     private func reload(_ repository: SQLiteGroupRepository) async {
         members = (try? await repository.members(of: group.id)) ?? members
-        if let expenseRepository = model.expenseRepository {
-            expenses = (try? await expenseRepository.expenses(in: group.id)) ?? expenses
+        if let expenseRepository = model.expenseRepository,
+           let ledger = try? await expenseRepository.ledger(in: group.id) {
+            expenses = ledger.map(\.expense)
+            balances = BalanceCalculator.balances(for: ledger, members: members.map(\.id))
+            settlements = BalanceCalculator.settlements(for: balances)
         }
+    }
+
+    private func name(of id: UUID) -> String {
+        members.first { $0.id == id }?.name ?? "Unknown"
     }
 }
 
