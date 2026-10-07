@@ -10,6 +10,8 @@
 
 </div>
 
+[![TAB app icon beside real group and trip screenshots](docs/screenshots/00-showcase.png)](#screenshots)
+
 TAB is a native iOS expense-sharing app whose local SQLite database is the source of truth. Groups, participants, expenses, balances and settlements work without a connection; the optional sync engine records local changes and handles version conflicts. There is no hosted backend or public demo.
 
 ## What it includes
@@ -30,13 +32,15 @@ The Xcode project is generated locally from [project.yml](project.yml) and is no
 
 ## Screenshots
 
-Captured with the Debug UI walkthrough on an iPhone 17e simulator using seeded sample groups. To regenerate the raw walkthrough images, run [docs/release/export-screenshots.sh](docs/release/export-screenshots.sh) with a suitable simulator; the four PNGs below are smaller, curated copies for GitHub.
+The cover pairs the real app icon with crops of the screens below. Captured with the Debug UI walkthrough on an iPhone 17e simulator using seeded sample groups. To regenerate the raw walkthrough images, run [docs/release/export-screenshots.sh](docs/release/export-screenshots.sh) with a suitable simulator; the four PNGs below are smaller, curated copies for GitHub. Select an image to view it at full size. After updating the committed PNGs, rebuild the cover with Pillow:
 
-| Welcome | Groups and balances |
+    python3 docs/screenshots/build-showcase.py
+
+| **Welcome** | **Groups and balances** |
 | --- | --- |
-| ![Teal TAB onboarding with name entry](docs/screenshots/01-onboarding.png) | ![Demo groups with balances and sync states](docs/screenshots/02-groups.png) |
+| [![Teal TAB onboarding with name entry](docs/screenshots/01-onboarding.png)](docs/screenshots/01-onboarding.png) | [![Demo groups with balances and sync states](docs/screenshots/02-groups.png)](docs/screenshots/02-groups.png) |
 | **Group detail** | **Edit an expense** |
-| ![Lisbon trip expenses and conflict notice](docs/screenshots/03-group-detail.png) | ![Expense editing with payer and split participants](docs/screenshots/04-edit-expense.png) |
+| [![Lisbon trip expenses and conflict notice](docs/screenshots/03-group-detail.png)](docs/screenshots/03-group-detail.png) | [![Expense editing with payer and split participants](docs/screenshots/04-edit-expense.png)](docs/screenshots/04-edit-expense.png) |
 
 ## Architecture
 
