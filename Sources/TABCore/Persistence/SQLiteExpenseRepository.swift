@@ -58,15 +58,22 @@ public struct SQLiteExpenseRepository: ExpenseRepository {
                     .int(expense.createdAt.millisecondsSince1970), .int(expense.updatedAt.millisecondsSince1970),
                 ]
             )
-            for share in shares {
+            let splits = shares.map {
+                ExpenseSplit(expenseID: expense.id, userID: $0.userID, amountMinor: $0.amountMinor)
+            }
+            for split in splits {
                 try db.execute(
                     "INSERT INTO expense_splits (id, expense_id, user_id, amount_minor) VALUES (?, ?, ?, ?)",
                     [
-                        .text(UUID().uuidString), .text(expense.id.uuidString),
-                        .text(share.userID.uuidString), .int(share.amountMinor),
+                        .text(split.id.uuidString), .text(expense.id.uuidString),
+                        .text(split.userID.uuidString), .int(split.amountMinor),
                     ]
                 )
             }
+            try OutboxStore.enqueue(
+                .upsertExpense, entityID: expense.id, groupID: groupID,
+                payload: UpsertExpensePayload(expense: expense, splits: splits), in: db
+            )
             return expense
         }
     }
@@ -86,19 +93,12 @@ public struct SQLiteExpenseRepository: ExpenseRepository {
         try await database.query(
             "SELECT * FROM expense_splits WHERE expense_id = ? ORDER BY rowid",
             [.text(expenseID.uuidString)]
-        ).map { row in
-            ExpenseSplit(
-                id: row.uuid("id"), expenseID: row.uuid("expense_id"),
-                userID: row.uuid("user_id"), amountMinor: row.int("amount_minor")
-            )
-        }
+        ).map(Self.split)
     }
 
     public func deleteExpense(id: UUID) async throws {
         try await database.transaction { db in
-            guard let row = try db.query(
-                "SELECT deleted_at FROM expenses WHERE id = ?", [.text(id.uuidString)]
-            ).first else {
+            guard let row = try db.query("SELECT * FROM expenses WHERE id = ?", [.text(id.uuidString)]).first else {
                 throw DomainError.expenseNotFound(id)
             }
             guard row.optionalInt("deleted_at") == nil else { return }
@@ -106,6 +106,15 @@ public struct SQLiteExpenseRepository: ExpenseRepository {
             try db.execute(
                 "UPDATE expenses SET deleted_at = ?, updated_at = ? WHERE id = ?",
                 [.int(now), .int(now), .text(id.uuidString)]
+            )
+            var deleted = Self.expense(try db.query("SELECT * FROM expenses WHERE id = ?", [.text(id.uuidString)])[0])
+            deleted.deletedAt = Date(timeIntervalSince1970: Double(now) / 1000)
+            let splits = try db.query(
+                "SELECT * FROM expense_splits WHERE expense_id = ? ORDER BY rowid", [.text(id.uuidString)]
+            ).map(Self.split)
+            try OutboxStore.enqueue(
+                .upsertExpense, entityID: id, groupID: deleted.groupID,
+                payload: UpsertExpensePayload(expense: deleted, splits: splits), in: db
             )
         }
     }
@@ -122,6 +131,13 @@ public struct SQLiteExpenseRepository: ExpenseRepository {
             [.text(groupID.uuidString), .text(userID.uuidString)]
         )
         guard !rows.isEmpty else { throw DomainError.notAMember(userID: userID, groupID: groupID) }
+    }
+
+    private static func split(_ row: Row) -> ExpenseSplit {
+        ExpenseSplit(
+            id: row.uuid("id"), expenseID: row.uuid("expense_id"),
+            userID: row.uuid("user_id"), amountMinor: row.int("amount_minor")
+        )
     }
 
     private static func expense(_ row: Row) -> Expense {
