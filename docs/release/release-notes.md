@@ -17,6 +17,7 @@ but not connected to a real backend.
 - **Sync engine.** Outbox with idempotent operations, cursor-based pull, retry with backoff, crash recovery,
   account binding and deterministic conflict handling. See
   [offline architecture](../architecture/offline-architecture.md).
+- **App icon.** A single 1024 px icon in `App/Assets.xcassets`.
 - **Supabase schema.** Postgres tables, row level security and RPCs in `supabase/`, validated on a local Postgres.
 
 ## Screenshots
@@ -27,7 +28,6 @@ See [demo.md](demo.md) and [`screenshots/`](screenshots/).
 
 - There is no edit-expense screen, and no screen to review or restore a change that lost a conflict. Both exist as
   APIs and are tested, but are not reachable from the UI.
-- The app has no icon.
 - A conflict is detected per whole expense, never per field.
 - `server_seq` is assigned when a row is written rather than when its transaction commits; the pull overlap
   mitigates this.
