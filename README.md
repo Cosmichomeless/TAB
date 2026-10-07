@@ -2,6 +2,14 @@
 
 > Offline-first native iOS expense splitting application with local persistence, optimistic updates, synchronization, and explicit conflict handling.
 
+## Screenshots
+
+The offline flow, captured from a UI test on an iPhone 17 Pro simulator. More in [docs/release/demo.md](docs/release/demo.md).
+
+| Group | Add expense | Balances |
+| --- | --- | --- |
+| ![New group](docs/release/screenshots/03-new-group.png) | ![Add expense](docs/release/screenshots/05-add-expense.png) | ![Expense and balances](docs/release/screenshots/06-expense-and-balances.png) |
+
 ## Overview
 
 TAB is a native iOS bill-splitting application designed around an offline-first architecture.
@@ -483,8 +491,9 @@ Instead, the project should demonstrate:
 - Phase 10 (optimistic updates): local writes show up immediately and request a sync without waiting for it (`SyncScheduler`); a status bar and per-row badges show synced, waiting, failed or conflict without blocking any flow. See [sync protocol](docs/architecture/sync-protocol.md#scheduling-and-sync-status-in-the-ui).
 - Phase 11 (conflict resolution): [conflict policy](docs/architecture/conflict-policy.md). Concurrent edits of an expense are detected by version; by default the server's version wins and the losing change stays recorded and can be restored (`ConflictResolver`). There is no UI to review or restore it yet.
 - Phases 12–13 (multi-device and reliability tests): `SyncResilienceTests` run two devices against the in-memory server through concurrent offline edits, connection loss mid-push, failing pulls, restarts, duplicate deliveries, server failures and 12 seeded random schedules, and assert that devices and server converge. See [two devices and a hostile network](docs/architecture/sync-protocol.md#two-devices-and-a-hostile-network).
-- Phase 14 (coverage): 138 tests. Domain, persistence and sync code is at 94–100 % line coverage (`swift test --enable-code-coverage`); the exceptions are `HTTPTransport` (the thin `URLSession` wrapper, 0 %) and `Migrations` (86 %, the rollback path of a failing migration is not exercised). Equal splits, balances (including random ledgers that must sum to zero), repository validation, retry/backoff, unexpected backend errors, cancellation, member-id clashes and every `ConflictError` are asserted automatically.
+- Phase 14 (coverage): 139 tests. Domain, persistence and sync code is at 94–100 % line coverage (`swift test --enable-code-coverage`); the exceptions are `HTTPTransport` (the thin `URLSession` wrapper, 0 %) and `Migrations` (86 %, the rollback path of a failing migration is not exercised). Equal splits, balances (including random ledgers that must sum to zero), repository validation, retry/backoff, unexpected backend errors, cancellation, member-id clashes and every `ConflictError` are asserted automatically.
 - Phase 15 (documentation): [offline architecture and trade-offs](docs/architecture/offline-architecture.md) consolidates the local and remote schemas, the sync protocol, the conflict rules, the choice of persistence and sync approach, the known limitations and what has and has not been verified.
-- Next: release preparation (demo, screenshots, release notes). Not started.
+- Phase 16 (release): [demo guide](docs/release/demo.md), [release notes](docs/release/release-notes.md) and screenshots of the offline flow (regenerated with `docs/release/export-screenshots.sh`). The "create an expense offline, reconnect, see it on another device" scenario is demonstrated in a test against an in-memory server (`swift test --filter OfflineToOnlineDemoTests`), **not** against a real Supabase project, which was never set up.
+- Nothing further is planned.
 
 Backend configuration is injected per build (`SUPABASE_URL`, `SUPABASE_ANON_KEY`); without it the app runs fully offline.

@@ -54,6 +54,10 @@ final class AppModel {
     func start() async {
         guard repository == nil else { return }
         session = try? await auth?.currentSession()
+        #if DEBUG
+        // UI tests start from a clean install: `-resetData` drops the local database and the current user.
+        if CommandLine.arguments.contains("-resetData") { Self.resetLocalData() }
+        #endif
         do {
             let database = try Database(path: try Self.databaseURL().path)
             let repository = SQLiteGroupRepository(database: database)
@@ -189,6 +193,16 @@ final class AppModel {
         guard let repository else { return }
         groups = try await repository.groups()
     }
+
+    #if DEBUG
+    private static func resetLocalData() {
+        UserDefaults.standard.removeObject(forKey: currentUserKey)
+        guard let url = try? databaseURL() else { return }
+        for suffix in ["", "-wal", "-shm"] {
+            try? FileManager.default.removeItem(atPath: url.path + suffix)
+        }
+    }
+    #endif
 
     private static func databaseURL() throws -> URL {
         let directory = try FileManager.default.url(

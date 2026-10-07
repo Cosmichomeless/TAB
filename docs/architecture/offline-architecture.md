@@ -195,7 +195,7 @@ the core path; it could be added later as a *hint to pull sooner*, never as the 
 
 ## 8. What has and has not been verified
 
-**Verified automatically** (`swift test`, 138 tests; `supabase/tests/run.sh`):
+**Verified automatically** (`swift test`, 139 tests; `supabase/tests/run.sh`):
 
 - Domain rules, equal splits and balances, including random ledgers that must sum to zero.
 - Persistence: repositories, migrations, transactions and rollback.
