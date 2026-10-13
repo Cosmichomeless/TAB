@@ -157,12 +157,11 @@ final class AppModel {
     }
 
     func addExpense(
-        groupID: UUID, paidBy: UUID, title: String, amountMinor: Int64, splitEquallyAmong participants: [UUID]
+        groupID: UUID, paidBy: UUID, title: String, amountMinor: Int64, method: SplitMethod
     ) async throws {
         guard let expenseRepository else { return }
         _ = try await expenseRepository.createExpense(
-            groupID: groupID, paidBy: paidBy, title: title, amountMinor: amountMinor,
-            splitEquallyAmong: participants
+            groupID: groupID, paidBy: paidBy, title: title, amountMinor: amountMinor, method: method
         )
         requestSync()
     }
@@ -175,6 +174,16 @@ final class AppModel {
         _ = try await expenseRepository.updateExpense(
             id: id, paidBy: paidBy, title: title, amountMinor: amountMinor,
             originalAmountMinor: originalAmountMinor, originalSplits: originalSplits, participants: participants
+        )
+        requestSync()
+    }
+
+    /// Replaces the split with the one `method` gives. Use the overload above to keep an existing split
+    /// when neither the amount nor the participants changed.
+    func updateExpense(id: UUID, paidBy: UUID, title: String, amountMinor: Int64, method: SplitMethod) async throws {
+        guard let expenseRepository else { return }
+        _ = try await expenseRepository.updateExpense(
+            id: id, paidBy: paidBy, title: title, amountMinor: amountMinor, method: method
         )
         requestSync()
     }

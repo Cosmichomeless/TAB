@@ -80,6 +80,14 @@ Unique constraint: (`expenseId`, `userId`).
 
 Invariant: the sum of `amountMinor` over an expense's splits equals the expense's `amountMinor`.
 
+### Unequal splits need no migration
+
+An expense can be split equally, by shares, by percentages or by exact amounts (`SplitMethod`). Every method is turned into
+exact minor units per person by `SplitCalculator` before anything is stored, so the `expense_split` table, the outbox and the
+sync payload are unchanged and old data stays valid. The method itself is not stored: reopening an unequal expense shows the
+stored amounts in "Exact" mode. Leftover minor units go to the largest fractional remainders, ties broken by UUID string, so
+the result never depends on input order or on the device.
+
 ## Synchronization Columns
 
 Every entity that synchronizes (all of the above) also carries:

@@ -12,6 +12,10 @@ public enum DomainError: Error, Equatable, Sendable {
     case duplicateParticipant(UUID)
     case notAMember(userID: UUID, groupID: UUID)
     case splitsDoNotMatchAmount(expected: Int64, actual: Int64)
+    /// A share, percentage or amount that is zero or negative where a positive one is required.
+    case invalidSplitWeight(UUID)
+    /// Percentages are in hundredths of a percent, so a full split adds up to 10 000.
+    case percentagesDoNotAddUp(actual: Int64)
     case expenseNotFound(UUID)
 }
 

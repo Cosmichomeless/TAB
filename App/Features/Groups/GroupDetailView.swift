@@ -386,6 +386,8 @@ struct ExpenseFormView: View {
     @State private var amount: String
     @State private var payerID: UUID
     @State private var selected: Set<UUID>
+    @State private var mode: SplitMode = .equal
+    @State private var entries: [UUID: String] = [:]
     @State private var originalSplits: [ExpenseSplit] = []
     @State private var message: String?
     @State private var isSaving = false
@@ -419,21 +421,25 @@ struct ExpenseFormView: View {
                         }
                         .padding(12)
                     }
-                    CardSection(editing == nil ? "Split equally between" : "Split between") {
+                    CardSection("Split") {
+                        Picker("Split method", selection: $mode) {
+                            Text("Equal").tag(SplitMode.equal)
+                            Text("Shares").tag(SplitMode.shares)
+                            Text("Percent").tag(SplitMode.percentages)
+                            Text("Exact").tag(SplitMode.exact)
+                        }
+                        .pickerStyle(.segmented)
+                        .padding(12)
+                        .disabled(splitLoadState != .loaded)
+                        .onChange(of: mode) { _, newMode in prepareEntries(for: newMode) }
+                        Divider().padding(.leading, 16)
                         ForEach(members) { member in
-                            Toggle(isOn: Binding(
-                                get: { selected.contains(member.id) },
-                                set: { if $0 { selected.insert(member.id) } else { selected.remove(member.id) } }
-                            )) {
-                                HStack(spacing: 12) {
-                                    Avatar(name: member.name, id: member.id, size: 32)
-                                    Text(member.name)
-                                }
-                            }
-                            .padding(14)
-                            .disabled(splitLoadState != .loaded)
+                            memberRow(member)
                             if member.id != members.last?.id { Divider().padding(.leading, 58) }
                         }
+                    }
+                    if let hint = modeHint {
+                        Text(hint.text).font(.footnote).foregroundStyle(hint.isProblem ? Theme.negative : Color.secondary)
                     }
                     if splitLoadState == .loading {
                         ProgressView("Loading split…")
@@ -456,14 +462,111 @@ struct ExpenseFormView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") { Task { await save() } }.disabled(isSaving || splitLoadState != .loaded)
                 }
+                // Number pads have no return key, and the keyboard would otherwise cover the fields below.
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") {
+                        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                    }
+                }
             }
             .task { if editing != nil { await loadSplit() } }
         }
         .tint(Theme.accent)
     }
 
+    @ViewBuilder
+    private func memberRow(_ member: User) -> some View {
+        Group {
+            if mode == .equal {
+                Toggle(isOn: Binding(
+                    get: { selected.contains(member.id) },
+                    set: { if $0 { selected.insert(member.id) } else { selected.remove(member.id) } }
+                )) {
+                    memberLabel(member)
+                }
+            } else {
+                HStack(spacing: 12) {
+                    memberLabel(member)
+                    Spacer()
+                    TextField(entryPlaceholder, text: Binding(
+                        get: { entries[member.id] ?? "" },
+                        set: { entries[member.id] = $0 }
+                    ))
+                    .keyboardType(mode == .shares ? .numberPad : .decimalPad)
+                    .multilineTextAlignment(.trailing)
+                    .frame(maxWidth: 110)
+                    .accessibilityLabel(member.name)
+                    Text(entrySuffix).foregroundStyle(Color.secondary)
+                }
+            }
+        }
+        .padding(14)
+        .disabled(splitLoadState != .loaded)
+    }
+
+    private func memberLabel(_ member: User) -> some View {
+        HStack(spacing: 12) {
+            Avatar(name: member.name, id: member.id, size: 32)
+            Text(member.name)
+        }
+    }
+
+    private var entryPlaceholder: String { mode == .shares ? "0" : "0.00" }
+
+    private var entrySuffix: String {
+        switch mode {
+        case .shares: String(localized: "parts")
+        case .percentages: "%"
+        case .exact: group.currency.code
+        case .equal: ""
+        }
+    }
+
+    /// What is still to assign (or too much assigned) in percent and exact modes.
+    private var modeHint: (text: String, isProblem: Bool)? {
+        guard splitLoadState == .loaded, mode != .equal else { return nil }
+        guard mode != .shares else { return ("Each person pays in proportion to their parts. Leave a field empty to leave someone out.", false) }
+        guard let minor = group.currency.parse(minorUnits: amount), minor > 0,
+              let left = SplitInput.remaining(
+                mode: mode, amountMinor: minor, participants: members.map(\.id), entries: entries, currency: group.currency
+              ) else { return nil }
+        let digits = mode == .percentages ? 2 : group.currency.minorUnitDigits
+        let scale = (0..<digits).reduce(Int64(1)) { value, _ in value * 10 }
+        let shown = Decimal(abs(left)) / Decimal(scale)
+        let unit = mode == .percentages ? "%" : group.currency.code
+        if left == 0 { return (String(localized: "Everything is assigned."), false) }
+        if left > 0 { return (String(localized: "\(shown.formatted()) \(unit) left to assign."), true) }
+        return (String(localized: "\(shown.formatted()) \(unit) over."), true)
+    }
+
+    /// Starts the fields of a method from something sensible instead of empty.
+    private func prepareEntries(for newMode: SplitMode) {
+        let people = members.map(\.id).filter { selected.contains($0) }
+        switch newMode {
+        case .equal:
+            return
+        case .shares:
+            entries = Dictionary(uniqueKeysWithValues: people.map { ($0, "1") })
+        case .percentages:
+            let method = try? SplitCalculator.shares(amountMinor: SplitMethod.fullPercentage, method: .equal(among: people))
+            entries = Dictionary(uniqueKeysWithValues: (method ?? []).map {
+                ($0.userID, Currency.eur.input(minorUnits: $0.amountMinor))
+            })
+        case .exact:
+            if !originalSplits.isEmpty, group.currency.parse(minorUnits: amount) == editing?.amountMinor {
+                entries = SplitInput.exactEntries(for: originalSplits, currency: group.currency)
+            } else if let minor = group.currency.parse(minorUnits: amount), minor > 0,
+                      let equal = try? SplitCalculator.shares(amountMinor: minor, method: .equal(among: people)) {
+                entries = Dictionary(uniqueKeysWithValues: equal.map { ($0.userID, group.currency.input(minorUnits: $0.amountMinor)) })
+            } else {
+                entries = [:]
+            }
+        }
+    }
+
     private var willRecalculateSplit: Bool {
-        guard let editing, splitLoadState == .loaded else { return false }
+        guard mode == .equal, let editing, splitLoadState == .loaded else { return false }
         return group.currency.parse(minorUnits: amount) != editing.amountMinor ||
             selected != Set(originalSplits.map(\.userID))
     }
@@ -482,6 +585,11 @@ struct ExpenseFormView: View {
             originalSplits = splits
             selected = Set(splits.map(\.userID))
             splitLoadState = .loaded
+            // An unequal split opens in exact mode so what was agreed stays visible and editable.
+            if !SplitInput.isEqual(splits, amountMinor: editing.amountMinor) {
+                entries = SplitInput.exactEntries(for: splits, currency: group.currency)
+                mode = .exact
+            }
         } catch {
             splitLoadState = .failed
             message = "Could not load this expense's split. Try again."
@@ -497,18 +605,27 @@ struct ExpenseFormView: View {
         isSaving = true
         defer { isSaving = false }
         do {
-            let participants = members.map(\.id).filter { selected.contains($0) }
+            let participants = members.map(\.id).filter { mode == .equal ? selected.contains($0) : true }
+            let method = try SplitInput.method(mode: mode, participants: participants, entries: entries, currency: group.currency)
             if let editing {
-                try await model.updateExpense(id: editing.id, paidBy: payerID, title: title,
-                                              amountMinor: minor, originalAmountMinor: editing.amountMinor,
-                                              originalSplits: originalSplits, participants: participants)
+                if mode == .equal {
+                    try await model.updateExpense(id: editing.id, paidBy: payerID, title: title,
+                                                  amountMinor: minor, originalAmountMinor: editing.amountMinor,
+                                                  originalSplits: originalSplits, participants: participants)
+                } else {
+                    try await model.updateExpense(id: editing.id, paidBy: payerID, title: title,
+                                                  amountMinor: minor, method: method)
+                }
             } else {
                 try await model.addExpense(groupID: group.id, paidBy: payerID, title: title,
-                                           amountMinor: minor, splitEquallyAmong: participants)
+                                           amountMinor: minor, method: method)
             }
             dismiss()
         } catch DomainError.emptyTitle { message = "Enter a title." }
         catch DomainError.noParticipants { message = "Select at least one participant." }
+        catch DomainError.invalidSplitWeight { message = "Check the numbers in the split: use positive numbers only." }
+        catch DomainError.percentagesDoNotAddUp { message = "The percentages must add up to 100 %." }
+        catch DomainError.splitsDoNotMatchAmount { message = "The amounts must add up to the expense total." }
         catch { message = "The expense could not be saved." }
     }
 }

@@ -115,10 +115,64 @@ final class WalkthroughUITests: XCTestCase {
         XCTAssertEqual(app.switches["M, Marta"].value as? String, "1")
     }
 
+    func testUnequalSplitsAreSavedAndReopenedAsExactAmounts() {
+        app.terminate()
+        app.launchArguments = ["-resetData", "-demoData", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Lisbon trip"].waitForExistence(timeout: 15))
+        app.staticTexts["Lisbon trip"].tap()
+        XCTAssertTrue(app.buttons["Add expense"].waitForExistence(timeout: 10))
+        app.buttons["Add expense"].tap()
+
+        let title = app.textFields["Title"]
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
+        title.tap()
+        title.typeText("Wine")
+        let amount = app.textFields["Amount (EUR)"]
+        amount.tap()
+        amount.typeText("30")
+
+        // 2 parts for David and 1 for Marta: 20.00 and 10.00.
+        app.buttons["Shares"].tap()
+        let david = app.textFields["David"]
+        XCTAssertTrue(david.waitForExistence(timeout: 5))
+        david.replaceText(with: "2")
+        app.buttons["Done"].tap()
+        let marta = app.textFields["Marta"]
+        marta.replaceText(with: "1")
+        app.buttons["Done"].tap()
+        // The rest start at 1 part each; an empty field leaves them out.
+        for other in ["Ana", "Bruno"] where app.textFields[other].exists {
+            app.textFields[other].replaceText(with: "")
+            app.buttons["Done"].tap()
+        }
+        snap("11-unequal-shares")
+        app.buttons["Save"].tap()
+        XCTAssertTrue(app.staticTexts["Wine"].waitForExistence(timeout: 10))
+
+        app.staticTexts["Wine"].tap()
+        XCTAssertTrue(app.navigationBars["Edit expense"].waitForExistence(timeout: 5))
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "isEnabled == true"), object: app.buttons["Save"]
+        )], timeout: 10), .completed)
+        XCTAssertEqual(app.textFields["David"].value as? String, "20.00")
+        XCTAssertEqual(app.textFields["Marta"].value as? String, "10.00")
+    }
+
     private func snap(_ name: String) {
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = name
         attachment.lifetime = .keepAlways
         add(attachment)
+    }
+}
+
+private extension XCUIElement {
+    /// Replaces the text of a field: taps at its trailing edge so the cursor lands after the text, then deletes it.
+    func replaceText(with newText: String) {
+        coordinate(withNormalizedOffset: CGVector(dx: 0.97, dy: 0.5)).tap()
+        let count = (value as? String)?.count ?? 0
+        if count > 0 { typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: count + 2)) }
+        if !newText.isEmpty { typeText(newText) }
     }
 }
