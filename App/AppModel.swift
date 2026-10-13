@@ -1,7 +1,10 @@
 import Foundation
-import Network
 import Observation
 import TABCore
+#if SYNC
+import Network
+import TABSync
+#endif
 
 /// `Group` is also a SwiftUI type, so the domain entity gets an unambiguous alias in the app.
 typealias ExpenseGroup = TABCore.Group
@@ -28,48 +31,55 @@ final class AppModel {
     private(set) var groups: [ExpenseGroup] = []
     private(set) var repository: SQLiteGroupRepository?
     private(set) var expenseRepository: SQLiteExpenseRepository?
+    #if SYNC
+    // The sync build adds an account, an outbox and a scheduler on top of the local database (see App/Sync).
     /// `nil` when no Supabase URL/key was injected at build time: the app then runs purely offline.
-    private let config: SupabaseConfig?
-    private let auth: AuthClient?
-    private(set) var session: AuthSession?
+    let config: SupabaseConfig?
+    let auth: AuthClient?
+    var session: AuthSession?
 
-    // MARK: Synchronization (read-only for the UI; the scheduler owns when to sync)
-
-    private(set) var syncPhase: SyncPhase = .localOnly
-    private(set) var syncSummary = SyncSummary()
-    private(set) var lastSyncedAt: Date?
+    var syncPhase: SyncPhase = .localOnly
+    var syncSummary = SyncSummary()
+    var lastSyncedAt: Date?
     /// Worst sync status of each group, for the badges in the group list.
-    private(set) var groupStatuses: [UUID: SyncStatus] = [:]
+    var groupStatuses: [UUID: SyncStatus] = [:]
     /// Bumped whenever a sync cycle finishes, so screens can refresh their per-row badges.
-    private(set) var syncRevision = 0
+    var syncRevision = 0
+    #endif
 
     /// What the group list shows for each group without opening it.
     private(set) var summaries: [UUID: GroupSummary] = [:]
 
-    @ObservationIgnored private var database: Database?
-    @ObservationIgnored private var outbox: OutboxStore?
-    @ObservationIgnored private var scheduler: SyncScheduler?
-    @ObservationIgnored private var demoBackend: (any RemoteBackend)?
-    @ObservationIgnored private var eventsTask: Task<Void, Never>?
-    @ObservationIgnored private var pathMonitor: NWPathMonitor?
+    @ObservationIgnored private(set) var database: Database?
+    #if SYNC
+    @ObservationIgnored var outbox: OutboxStore?
+    @ObservationIgnored var scheduler: SyncScheduler?
+    @ObservationIgnored var demoBackend: (any RemoteBackend)?
+    @ObservationIgnored var eventsTask: Task<Void, Never>?
+    @ObservationIgnored var pathMonitor: NWPathMonitor?
 
     var isBackendConfigured: Bool { auth != nil }
+    var syncOverview: SyncOverview { SyncOverview(phase: syncPhase, summary: syncSummary) }
+    #endif
     var currentUser: User? {
         if case .ready(let user) = state { user } else { nil }
     }
-    var syncOverview: SyncOverview { SyncOverview(phase: syncPhase, summary: syncSummary) }
 
     init() {
+        #if SYNC
         let config = SupabaseConfig(bundle: .main)
         self.config = config
         self.auth = config.map { AuthClient(config: $0, store: KeychainSessionStore()) }
+        #endif
     }
 
-    private static let currentUserKey = "currentUserID"
+    static let currentUserKey = "currentUserID"
 
     func start() async {
         guard repository == nil else { return }
+        #if SYNC
         session = try? await auth?.currentSession()
+        #endif
         #if DEBUG
         // UI tests start from a clean install: `-resetData` drops the local database and the current user.
         if CommandLine.arguments.contains("-resetData") { Self.resetLocalData() }
@@ -78,19 +88,25 @@ final class AppModel {
             let database = try Database(path: try Self.databaseURL().path)
             self.database = database
             #if DEBUG
-            // `-demoData` fills the app with a realistic trip against an in-memory server (see DemoData.swift).
+            // `-demoData` fills the app with a realistic trip (see DemoData.swift).
             if CommandLine.arguments.contains("-demoData") {
+                #if SYNC
                 demoBackend = try await DemoData.install(
                     in: database, offline: CommandLine.arguments.contains("-demoOffline"),
                     userKey: Self.currentUserKey
                 )
+                #else
+                try await DemoData.install(in: database, userKey: Self.currentUserKey)
+                #endif
             }
             #endif
             let repository = SQLiteGroupRepository(database: database)
             self.repository = repository
             self.expenseRepository = SQLiteExpenseRepository(database: database)
+            #if SYNC
             self.outbox = OutboxStore(database: database)
             startSync(database: database)
+            #endif
 
             if let raw = UserDefaults.standard.string(forKey: Self.currentUserKey),
                let id = UUID(uuidString: raw),
@@ -103,29 +119,21 @@ final class AppModel {
 
             for await _ in repository.changes() {
                 try? await reloadGroups()
+                #if SYNC
                 await refreshSyncState()
+                #endif
             }
         } catch {
             state = .failed(error.localizedDescription)
         }
     }
 
-    func signUp(email: String, password: String) async throws {
-        guard let auth else { throw AuthError.notConfigured }
-        session = try await auth.signUp(email: email, password: password)
-        scheduler?.sessionChanged()
-    }
-
-    func signIn(email: String, password: String) async throws {
-        guard let auth else { throw AuthError.notConfigured }
-        session = try await auth.signIn(email: email, password: password)
-        scheduler?.sessionChanged()
-    }
-
-    func signOut() async {
-        await auth?.signOut()
-        session = nil
-        scheduler?.sessionChanged()
+    /// Asks the scheduler to sync and returns immediately: local writes never wait for the network.
+    /// Nothing to do in the local build, where the data never leaves the device.
+    func requestSync() {
+        #if SYNC
+        scheduler?.requestSync()
+        #endif
     }
 
     func createProfile(name: String) async throws {
@@ -175,90 +183,6 @@ final class AppModel {
         guard let expenseRepository else { return }
         try await expenseRepository.deleteExpense(id: id)
         requestSync()
-    }
-
-    // MARK: - Conflicts
-
-    /// Changes of this group that lost to another device's edit (or still wait for a decision), newest first.
-    func conflicts(in groupID: UUID) async -> [Conflict] {
-        guard let database else { return [] }
-        let all = (try? await ConflictResolver(database: database).conflicts()) ?? []
-        return all.filter { ($0.local ?? $0.remote)?.groupID == groupID }
-    }
-
-    func restoreConflict(_ id: UUID) async throws {
-        guard let database else { return }
-        let resolver = ConflictResolver(database: database)
-        let conflict = try await resolver.conflicts().first { $0.id == id }
-        if conflict?.status == .open {
-            try await resolver.keepLocal(id)
-        } else {
-            try await resolver.restoreLocal(id)
-        }
-        requestSync()
-    }
-
-    // MARK: - Synchronization
-
-    /// Asks the scheduler to sync and returns immediately: local writes never wait for the network.
-    func requestSync() {
-        scheduler?.requestSync()
-    }
-
-    /// Sync status of each entity (all `synced` when nothing is queued). Empty when sync is not available,
-    /// so a local-only build does not show every row as "waiting" forever.
-    func syncStatuses(of ids: [UUID]) async -> [UUID: SyncStatus] {
-        guard scheduler != nil, let outbox else { return [:] }
-        return (try? await outbox.statuses(of: ids)) ?? [:]
-    }
-
-    private func startSync(database: Database) {
-        let backend: any RemoteBackend
-        if let demoBackend {
-            backend = demoBackend
-        } else if let config, let auth {
-            backend = SupabaseBackend(config: config, auth: auth)
-        } else {
-            return
-        }
-        let engine = SyncEngine(database: database, backend: backend)
-        let scheduler = SyncScheduler(engine: engine)
-        self.scheduler = scheduler
-        syncPhase = .idle
-
-        eventsTask = Task { [weak self] in
-            for await event in scheduler.events {
-                await self?.handle(event)
-            }
-        }
-
-        // The system tells us when a connection appears; the scheduler also polls slowly as a fallback.
-        let monitor = NWPathMonitor()
-        monitor.pathUpdateHandler = { path in
-            if path.status == .satisfied { scheduler.connectivityRestored() }
-        }
-        monitor.start(queue: DispatchQueue(label: "tab.network-monitor"))
-        pathMonitor = monitor
-
-        scheduler.requestSync()
-    }
-
-    private func handle(_ event: SyncScheduler.Event) async {
-        switch event {
-        case .started:
-            syncPhase = .syncing
-        case .finished(let report):
-            syncPhase = SyncPhase(report.outcome)
-            if report.outcome == .completed { lastSyncedAt = Date() }
-            await refreshSyncState()
-            syncRevision += 1
-        }
-    }
-
-    private func refreshSyncState() async {
-        guard scheduler != nil, let outbox else { return }
-        if let summary = try? await outbox.summary() { syncSummary = summary }
-        groupStatuses = (try? await outbox.groupStatuses(of: groups.map(\.id))) ?? groupStatuses
     }
 
     private func reloadGroups() async throws {

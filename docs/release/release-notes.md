@@ -1,5 +1,7 @@
 # TAB 1.0.0 — portfolio source tag
 
+> **App Store 1.0 is local only.** The sync engine described below lives in `TABSync` and the `TAB-Sync` target and is not part of the shipping app. See [local-only](../architecture/local-only.md).
+
 First source tag: an offline-first expense splitting app for iOS 17, with a sync engine that is complete and tested
 but not connected to a real backend. This is not an App Store or hosted-backend release.
 

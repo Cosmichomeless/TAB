@@ -12,19 +12,19 @@
 
 [![TAB app icon beside real group and trip screenshots](docs/screenshots/00-showcase.png)](#screenshots)
 
-TAB is a native iOS expense-sharing app whose local SQLite database is the source of truth. Groups, participants, expenses, balances and settlements work without a connection; the optional sync engine records local changes and handles version conflicts. There is no hosted backend or public demo.
+TAB is a native iOS expense-sharing app whose local SQLite database is the source of truth. Groups, participants, expenses, balances and settlements work without a connection; the data never leaves the device: there are no accounts and no server. A sync engine (outbox, versioned operations, conflict review) exists in its own module and in a separate `TAB-Sync` build target, but it is not part of the app that ships; see [local-only](docs/architecture/local-only.md).
 
 ## What it includes
 
 - **Offline-first groups:** create a group, add people and record expenses without waiting for a server.
 - **Exact balances:** amounts use integer minor units; equal splits distribute remainders deterministically.
 - **Safe editing:** edit a shared expense while preserving an existing unequal split unless the amount or participants change.
-- **Visible sync state:** pending, synced, failed and conflicted changes have explicit UI states.
-- **Conflict review:** compare the payer, shares and deletion state before restoring a losing edit.
+- **No account, no network:** the shipping app has no sign-in, no analytics and no network code; it asks for no permission.
+- **Sync (separate build):** the `TAB-Sync` target adds sync states and conflict review on top of the same local database.
 
 ## Try it
 
-On a Mac with Xcode and [XcodeGen](https://github.com/yonaskolb/XcodeGen), run this from the repository root, then choose the TAB scheme and an iPhone simulator in Xcode. No Supabase credentials are needed for the local experience.
+On a Mac with Xcode and [XcodeGen](https://github.com/yonaskolb/XcodeGen), run this from the repository root, then choose the TAB scheme and an iPhone simulator in Xcode. The `TAB` scheme is the local app and needs no credentials; the `TAB-Sync` scheme compiles the sync UI with the `SYNC` flag and reads `SUPABASE_URL` and `SUPABASE_ANON_KEY` from the build settings.
 
     xcodegen generate && open TAB.xcodeproj
 
@@ -47,14 +47,16 @@ The cover pairs the real app icon with crops of the screens below. Captured with
 ```mermaid
 flowchart LR
     UI[SwiftUI] -->|Local reads and writes| DB[SQLite]
-    DB -->|Pending operations| Outbox[Outbox]
-    Outbox -->|Push and pull| Engine[Sync engine]
-    Engine -->|Optional authenticated RPCs| API[Supabase schema]
+    DB -.->|TAB-Sync only| Outbox[Outbox]
+    Outbox -.->|Push and pull| Engine[TABSync engine]
+    Engine -.->|Optional authenticated RPCs| API[Supabase schema]
 ```
+
+The solid path is the shipping app (`TAB`, which links only `TABCore`). The dashed path exists only in `TAB-Sync`.
 
 - **UI and storage:** local repositories provide immediate results, including while offline.
 - **Balance engine and outbox:** balances are derived from expenses; changes are queued transactionally.
-- **Sync boundary:** an optional configured backend receives versioned operations; conflict policy keeps the losing edit available for review.
+- **Sync boundary:** `TABSync` is a separate SwiftPM library that depends on `TABCore`, never the other way round. The local app does not link it, so no sync or network code ends up in the shipping binary.
 
 ## Design decisions
 
@@ -67,7 +69,7 @@ flowchart LR
 
 ## Known limitations
 
-- No Supabase project is provisioned for a public demo. Multi-device convergence is verified against an in-memory server, not a live deployment.
+- The shipping app is local only; sync is not offered to users. No Supabase project is provisioned. Multi-device convergence is verified against an in-memory server, not a live deployment.
 - Equal splitting is the creation flow; the editor preserves a pre-existing unequal split only while amount and participants stay the same.
 - Payments, bank connections, automatic currency conversion and receipt OCR are out of scope.
 - The source is tagged v1.0.0 for the portfolio; no GitHub Release or App Store build has been published. The [release notes](docs/release/release-notes.md) distinguish what was tested from what was not.
@@ -85,14 +87,16 @@ flowchart LR
 | [Product MVP](docs/product/mvp.md) | User flows and scope. |
 | [Offline architecture](docs/architecture/offline-architecture.md) | Storage, sync and trade-offs. |
 | [Data model](docs/architecture/data-model.md) | Users, expenses, splits and balances. |
-| [Sync protocol](docs/architecture/sync-protocol.md) | Outbox, retries and convergence. |
+| [Local only](docs/architecture/local-only.md) | What ships, what is behind `SYNC`, and how it is verified. |
+| [Sync protocol](docs/architecture/sync-protocol.md) | Outbox, retries and convergence (`TABSync`). |
 | [Conflict policy](docs/architecture/conflict-policy.md) | Resolution and restoration. |
 | [Demo](docs/release/demo.md) · [Release notes](docs/release/release-notes.md) | Screenshots and validation boundaries. |
 
 ## Repository layout
 
     App/               SwiftUI screens and icon-driven theme
-    Sources/TABCore/   Domain, SQLite repositories and sync engine
+    Sources/TABCore/   Domain, SQLite repositories, balances
+    Sources/TABSync/   Sync engine, auth and Supabase client (TAB-Sync build only)
     Tests/             Domain, persistence and sync tests
     UITests/           Simulator walkthroughs
     supabase/          Schema and RPCs (not deployed for this demo)

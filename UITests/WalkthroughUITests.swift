@@ -63,11 +63,12 @@ final class WalkthroughUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Dinner"].waitForExistence(timeout: 5))
         snap("06-expense-and-balances")
 
-        // 7. Account screen with no backend configured.
+        // 7. Everything is local: no account, no sync status.
         app.navigationBars.buttons.element(boundBy: 0).tap()
-        app.buttons["Account"].tap()
-        XCTAssertTrue(app.navigationBars["Account"].waitForExistence(timeout: 5))
-        snap("07-account-offline")
+        XCTAssertTrue(app.navigationBars["Groups"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["Account"].exists)
+        XCTAssertFalse(app.staticTexts["Local only"].exists)
+        snap("07-groups-local")
     }
 
     func testDemoPolishScreens() {
@@ -86,11 +87,6 @@ final class WalkthroughUITests: XCTestCase {
         )], timeout: 10), .completed)
         snap("10-edit-expense")
         app.buttons["Cancel"].tap()
-        if app.buttons.matching(identifier: "1 of your edits was replaced").firstMatch.exists {
-            app.buttons.matching(identifier: "1 of your edits was replaced").firstMatch.tap()
-            XCTAssertTrue(app.navigationBars["Review changes"].waitForExistence(timeout: 5))
-            snap("11-conflict-review")
-        }
     }
 
     func testEditingAnExpensePreservesItsPartialSplit() {

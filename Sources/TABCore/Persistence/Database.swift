@@ -47,7 +47,7 @@ public enum DatabaseError: Error, Equatable, Sendable {
 
 extension Date {
     /// Milliseconds since the Unix epoch, the representation used in SQLite.
-    var millisecondsSince1970: Int64 {
+    public var millisecondsSince1970: Int64 {
         Int64((timeIntervalSince1970 * 1000).rounded())
     }
 }

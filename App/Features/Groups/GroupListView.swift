@@ -1,10 +1,15 @@
 import SwiftUI
 import TABCore
+#if SYNC
+import TABSync
+#endif
 
 struct GroupListView: View {
     @Environment(AppModel.self) private var model
     @State private var showingNewGroup = false
+    #if SYNC
     @State private var showingAccount = false
+    #endif
 
     var body: some View {
         ScrollView {
@@ -15,7 +20,11 @@ struct GroupListView: View {
                 LazyVStack(spacing: 14) {
                     ForEach(model.groups) { group in
                         NavigationLink(value: group) {
+                            #if SYNC
                             GroupCard(group: group, summary: model.summaries[group.id], status: model.groupStatuses[group.id])
+                            #else
+                            GroupCard(group: group, summary: model.summaries[group.id])
+                            #endif
                         }
                         .buttonStyle(.plain)
                     }
@@ -29,16 +38,20 @@ struct GroupListView: View {
         .navigationTitle("Groups")
         .navigationDestination(for: ExpenseGroup.self) { GroupDetailView(group: $0) }
         .toolbar {
+            #if SYNC
             ToolbarItem(placement: .topBarLeading) {
                 Button("Account", systemImage: "person.crop.circle") { showingAccount = true }
             }
+            #endif
             ToolbarItem(placement: .topBarTrailing) {
                 Button("New group", systemImage: "plus") { showingNewGroup = true }
             }
         }
         .sheet(isPresented: $showingNewGroup) { NewGroupView() }
+        #if SYNC
         .sheet(isPresented: $showingAccount) { AccountView() }
         .safeAreaInset(edge: .bottom) { SyncStatusBar() }
+        #endif
     }
 }
 
@@ -69,7 +82,9 @@ private struct EmptyGroups: View {
 private struct GroupCard: View {
     let group: ExpenseGroup
     let summary: GroupSummary?
+    #if SYNC
     let status: SyncStatus?
+    #endif
 
     var body: some View {
         HStack(spacing: 14) {
@@ -89,7 +104,9 @@ private struct GroupCard: View {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
                     Text(group.name).font(.headline).foregroundStyle(.primary)
+                    #if SYNC
                     if let status { SyncBadge(status: status) }
+                    #endif
                 }
                 Text(subtitle).font(.subheadline).foregroundStyle(.secondary)
             }

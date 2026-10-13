@@ -1,5 +1,8 @@
 import SwiftUI
 import TABCore
+#if SYNC
+import TABSync
+#endif
 
 struct GroupDetailView: View {
     @Environment(AppModel.self) private var model
@@ -9,11 +12,13 @@ struct GroupDetailView: View {
     @State private var expenses: [Expense] = []
     @State private var balances: [Balance] = []
     @State private var settlements: [Settlement] = []
+    #if SYNC
     @State private var statuses: [UUID: SyncStatus] = [:]
     @State private var conflicts: [Conflict] = []
+    @State private var showingConflicts = false
+    #endif
     @State private var showingAddParticipant = false
     @State private var showingAddExpense = false
-    @State private var showingConflicts = false
     @State private var editing: Expense?
     @State private var pendingDelete: Expense?
     @State private var actionError: String?
@@ -26,6 +31,7 @@ struct GroupDetailView: View {
                     .listRowInsets(EdgeInsets())
                     .listRowBackground(Color.clear)
             }
+            #if SYNC
             if attentionCount > 0 {
                 Section {
                     ConflictBanner(count: attentionCount) { showingConflicts = true }
@@ -33,6 +39,7 @@ struct GroupDetailView: View {
                         .listRowBackground(Color.clear)
                 }
             }
+            #endif
             Section {
                 if expenses.isEmpty {
                     Text("No expenses yet. Add the first one with the + button.")
@@ -41,7 +48,11 @@ struct GroupDetailView: View {
                 }
                 ForEach(expenses) { expense in
                     Button { editing = expense } label: {
+                        #if SYNC
                         ExpenseRow(expense: expense, payer: member(expense.paidBy), status: statuses[expense.id])
+                        #else
+                        ExpenseRow(expense: expense, payer: member(expense.paidBy))
+                        #endif
                     }
                     .buttonStyle(.plain)
                     .listRowBackground(Theme.card)
@@ -128,9 +139,11 @@ struct GroupDetailView: View {
         .sheet(isPresented: $showingAddParticipant) {
             AddParticipantView(group: group)
         }
+        #if SYNC
         .sheet(isPresented: $showingConflicts) {
             ConflictReviewView(group: group, members: members)
         }
+        #endif
         .confirmationDialog(
             "Delete this expense?", isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }),
             titleVisibility: .visible, presenting: pendingDelete
@@ -142,17 +155,25 @@ struct GroupDetailView: View {
                 }
             }
         } message: { _ in
+            #if SYNC
             Text("The balances are recalculated and the deletion syncs to the other devices.")
+            #else
+            Text("The balances are recalculated.")
+            #endif
         }
+        #if SYNC
         .safeAreaInset(edge: .bottom) { SyncStatusBar() }
+        #endif
         .alert("Could not delete", isPresented: Binding(get: { actionError != nil }, set: { if !$0 { actionError = nil } })) {
             Button("OK") { actionError = nil }
         } message: { Text(actionError ?? "") }
+        #if SYNC
         .task(id: model.syncRevision) {
             statuses = await model.syncStatuses(of: expenses.map(\.id))
             conflicts = await model.conflicts(in: group.id)
             if let repository = model.repository { await reload(repository) }
         }
+        #endif
         .task {
             guard let repository = model.repository else { return }
             await reload(repository)
@@ -167,10 +188,12 @@ struct GroupDetailView: View {
         return balances.first { $0.userID == me.id }?.netMinor
     }
 
+    #if SYNC
     /// Edits that lost and have not been restored, or that still wait for a decision.
     private var attentionCount: Int {
         conflicts.filter { $0.status == .open || $0.resolution == .remoteWins }.count
     }
+    #endif
 
     private func reload(_ repository: SQLiteGroupRepository) async {
         members = (try? await repository.members(of: group.id)) ?? members
@@ -179,9 +202,13 @@ struct GroupDetailView: View {
             expenses = ledger.map(\.expense)
             balances = BalanceCalculator.balances(for: ledger, members: members.map(\.id))
             settlements = BalanceCalculator.settlements(for: balances)
+            #if SYNC
             statuses = await model.syncStatuses(of: expenses.map(\.id))
+            #endif
         }
+        #if SYNC
         conflicts = await model.conflicts(in: group.id)
+        #endif
     }
 
     private func member(_ id: UUID) -> User? { members.first { $0.id == id } }
@@ -259,37 +286,13 @@ private struct Hero: View {
     }
 }
 
-private struct ConflictBanner: View {
-    let count: Int
-    let review: () -> Void
-
-    var body: some View {
-        Button(action: review) {
-            HStack(spacing: 12) {
-                Image(systemName: "arrow.triangle.merge")
-                    .font(.title3).foregroundStyle(Theme.warning)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(count == 1 ? "1 of your edits was replaced" : "\(count) of your edits were replaced")
-                        .font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
-                    Text("Someone else changed the same expense first. Review and restore yours.")
-                        .font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.leading)
-                }
-                Spacer(minLength: 4)
-                Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
-            }
-            .padding(14)
-            .background(Theme.amber.opacity(0.18), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(Theme.amber.opacity(0.5), lineWidth: 1))
-        }
-        .buttonStyle(.plain)
-    }
-}
-
 struct ExpenseRow: View {
     let expense: Expense
     let payer: User?
+    #if SYNC
     /// `nil` when sync is not available (nothing to show).
     var status: SyncStatus?
+    #endif
 
     var body: some View {
         HStack(spacing: 12) {
@@ -304,7 +307,9 @@ struct ExpenseRow: View {
             VStack(alignment: .trailing, spacing: 3) {
                 Text(expense.currency.format(minorUnits: expense.amountMinor))
                     .monospacedDigit().fontWeight(.semibold)
+                #if SYNC
                 if let status { SyncBadge(status: status) }
+                #endif
             }
         }
         .contentShape(Rectangle())
@@ -505,70 +510,5 @@ struct ExpenseFormView: View {
         } catch DomainError.emptyTitle { message = "Enter a title." }
         catch DomainError.noParticipants { message = "Select at least one participant." }
         catch { message = "The expense could not be saved." }
-    }
-}
-
-struct ConflictReviewView: View {
-    @Environment(AppModel.self) private var model
-    @Environment(\.dismiss) private var dismiss
-    let group: ExpenseGroup
-    let members: [User]
-    @State private var conflicts: [Conflict] = []
-    @State private var message: String?
-
-    var body: some View {
-        NavigationStack {
-            List {
-                ForEach(conflicts) { conflict in
-                    if conflict.status == .open || conflict.resolution == .remoteWins {
-                        Section {
-                            if let local = conflict.local {
-                                version(local, heading: "Your edit (will replace current version)")
-                            }
-                            if let remote = conflict.remote {
-                                version(remote, heading: "Current version")
-                            }
-                            Button("Restore my edit") { Task { await restore(conflict.id) } }
-                                .disabled(conflict.local == nil || (conflict.status == .open && conflict.remoteVersion == nil))
-                        } header: { Text(conflict.local?.title ?? "Expense conflict") }
-                        .listRowBackground(Theme.card)
-                    }
-                }
-                if let message { Text(message).foregroundStyle(Theme.negative) }
-            }
-            .scrollContentBackground(.hidden)
-            .brandScreen()
-            .navigationTitle("Review changes")
-            .toolbar { Button("Done") { dismiss() } }
-            .task { await reload() }
-        }
-        .tint(Theme.accent)
-    }
-
-    private func reload() async { conflicts = await model.conflicts(in: group.id) }
-
-    private func version(_ expense: UpsertExpensePayload, heading: String) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(heading).font(.headline)
-            LabeledContent("Title", value: expense.title)
-            LabeledContent("Amount", value: group.currency.format(minorUnits: expense.amountMinor))
-            LabeledContent("Paid by", value: name(of: expense.paidBy))
-            LabeledContent("Status", value: expense.deletedAt == nil ? "Active" : "Deleted")
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Split").foregroundStyle(.secondary)
-                ForEach(expense.splits, id: \.id) { split in
-                    LabeledContent(name(of: split.userID), value: group.currency.format(minorUnits: split.amountMinor))
-                }
-            }
-        }
-    }
-
-    private func name(of id: UUID) -> String {
-        members.first { $0.id == id }?.name ?? id.uuidString
-    }
-
-    private func restore(_ id: UUID) async {
-        do { try await model.restoreConflict(id); await reload() }
-        catch { message = "Could not restore your edit. Try again." }
     }
 }

@@ -10,15 +10,43 @@ settings:
   base:
     SWIFT_VERSION: "6.0"
 targets:
+  # The App Store app: everything stays on the device. No sync code is compiled in or linked.
   TAB:
     type: application
     platform: iOS
     sources:
-      - App
+      - path: App
+        excludes:
+          - Sync
     dependencies:
       - package: TABCore
     info:
       path: App/Info.plist
+      properties:
+        ITSAppUsesNonExemptEncryption: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.cosmichomeless.TAB
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_CFBundleDisplayName: TAB
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: UIInterfaceOrientationPortrait
+        MARKETING_VERSION: "1.0.0"
+        CURRENT_PROJECT_VERSION: "1"
+  # Accounts and sync (Supabase), compiled with the SYNC flag. Not shipped: kept so the sync work does not rot.
+  TAB-Sync:
+    type: application
+    platform: iOS
+    sources:
+      - path: App
+        excludes:
+          - Info.plist
+    dependencies:
+      - package: TABCore
+      - package: TABCore
+        product: TABSync
+    info:
+      path: SyncApp/Info.plist
       properties:
         ITSAppUsesNonExemptEncryption: false
         SupabaseURL: $(SUPABASE_URL)
@@ -28,10 +56,11 @@ targets:
         # Injected per build (`xcodebuild SUPABASE_URL=... SUPABASE_ANON_KEY=...`); empty means offline only.
         SUPABASE_URL: ""
         SUPABASE_ANON_KEY: ""
-        PRODUCT_BUNDLE_IDENTIFIER: com.cosmichomeless.TAB
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) SYNC"
+        PRODUCT_BUNDLE_IDENTIFIER: com.cosmichomeless.TAB.sync
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
-        INFOPLIST_KEY_CFBundleDisplayName: TAB
+        INFOPLIST_KEY_CFBundleDisplayName: TAB Sync
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: UIInterfaceOrientationPortrait
         MARKETING_VERSION: "1.0.0"
         CURRENT_PROJECT_VERSION: "1"

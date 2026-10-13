@@ -1,11 +1,11 @@
 # ADR 0002 — Synchronization: custom outbox over Supabase
 
-- **Status:** Accepted
+- **Status:** Accepted, not shipped. The App Store build is [local only](local-only.md); this design lives in `TABSync` and the `TAB-Sync` target.
 - **Context:** [Offline-first architecture](offline-first.md), [sync protocol](sync-protocol.md), [backend](backend.md), [ADR 0001](adr-0001-persistence.md)
 
 ## Decision
 
-TAB synchronizes with a **custom outbox/pull protocol** over the Supabase backend (Postgres RPCs), implemented in Swift in `TABCore`. No sync framework and no Realtime subscription is used in the first version.
+TAB synchronizes with a **custom outbox/pull protocol** over the Supabase backend (Postgres RPCs), implemented in Swift in `TABSync` (the outbox table and its writer stay in `TABCore`, because every repository write queues an operation in the same transaction). No sync framework and no Realtime subscription is used in the first version.
 
 ## Context
 

@@ -14,7 +14,7 @@ public struct SQLiteGroupRepository: GroupRepository, UserRepository {
         let user = User(name: try Self.validName(name), email: try Self.validEmail(email))
         try await database.transaction { db in
             try Self.insertUser(user, in: db)
-            try OutboxStore.enqueue(
+            try Outbox.enqueue(
                 .claimUser, entityID: user.id, groupID: nil, payload: UpsertParticipantPayload(user: user), in: db
             )
         }
@@ -39,7 +39,7 @@ public struct SQLiteGroupRepository: GroupRepository, UserRepository {
                     .text(createdBy.uuidString), .int(group.createdAt.millisecondsSince1970),
                 ]
             )
-            try OutboxStore.enqueue(
+            try Outbox.enqueue(
                 .createGroup, entityID: group.id, groupID: group.id, payload: CreateGroupPayload(group: group), in: db
             )
             try Self.insertMember(userID: createdBy, groupID: group.id, in: db)
@@ -75,7 +75,7 @@ public struct SQLiteGroupRepository: GroupRepository, UserRepository {
                 throw DomainError.groupNotFound(groupID)
             }
             try Self.insertUser(user, in: db)
-            try OutboxStore.enqueue(
+            try Outbox.enqueue(
                 .upsertParticipant, entityID: user.id, groupID: groupID, payload: UpsertParticipantPayload(user: user), in: db
             )
             try Self.insertMember(userID: user.id, groupID: groupID, in: db)
@@ -105,7 +105,7 @@ public struct SQLiteGroupRepository: GroupRepository, UserRepository {
     /// Inserts the membership and queues it for the backend, in the caller's transaction.
     private static func insertMember(userID: UUID, groupID: UUID, in db: isolated Database) throws {
         let member = GroupMember(groupID: groupID, userID: userID)
-        try OutboxStore.enqueue(
+        try Outbox.enqueue(
             .addMember, entityID: member.id, groupID: groupID, payload: AddMemberPayload(member: member), in: db
         )
         try db.execute(

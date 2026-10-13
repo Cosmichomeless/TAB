@@ -45,6 +45,23 @@ public struct PendingOperation: Identifiable, Hashable, Sendable {
     public var nextAttemptAt: Date
     public var lastError: String?
     public let createdAt: Date
+
+    public init(
+        id: UUID, seq: Int64, kind: OperationKind, entityID: UUID, groupID: UUID?, payload: Data,
+        status: OperationStatus, attempts: Int, nextAttemptAt: Date, lastError: String?, createdAt: Date
+    ) {
+        self.id = id
+        self.seq = seq
+        self.kind = kind
+        self.entityID = entityID
+        self.groupID = groupID
+        self.payload = payload
+        self.status = status
+        self.attempts = attempts
+        self.nextAttemptAt = nextAttemptAt
+        self.lastError = lastError
+        self.createdAt = createdAt
+    }
 }
 
 /// What the UI shows for an entity. Derived from its operations, never stored on the entity.
@@ -106,6 +123,12 @@ public struct UpsertExpensePayload: Codable, Sendable, Equatable {
         public let id: UUID
         public let userID: UUID
         public let amountMinor: Int64
+
+        public init(id: UUID, userID: UUID, amountMinor: Int64) {
+            self.id = id
+            self.userID = userID
+            self.amountMinor = amountMinor
+        }
     }
 
     public let id: UUID
@@ -117,6 +140,21 @@ public struct UpsertExpensePayload: Codable, Sendable, Equatable {
     public let updatedAt: Int64
     public let deletedAt: Int64?
     public let splits: [Split]
+
+    public init(
+        id: UUID, groupID: UUID, paidBy: UUID, title: String, amountMinor: Int64,
+        createdAt: Int64, updatedAt: Int64, deletedAt: Int64?, splits: [Split]
+    ) {
+        self.id = id
+        self.groupID = groupID
+        self.paidBy = paidBy
+        self.title = title
+        self.amountMinor = amountMinor
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+        self.deletedAt = deletedAt
+        self.splits = splits
+    }
 }
 
 extension UpsertParticipantPayload {
@@ -146,18 +184,6 @@ extension UpsertExpensePayload {
             updatedAt: expense.updatedAt.millisecondsSince1970,
             deletedAt: expense.deletedAt?.millisecondsSince1970,
             splits: splits.map { Split(id: $0.id, userID: $0.userID, amountMinor: $0.amountMinor) }
-        )
-    }
-}
-
-extension UpsertExpensePayload {
-    /// The server's copy of an expense, in the same shape as a local operation so both sides can be compared.
-    init(remote: RemoteExpense) {
-        self.init(
-            id: remote.id, groupID: remote.groupID, paidBy: remote.paidBy, title: remote.title,
-            amountMinor: remote.amountMinor, createdAt: remote.createdAt.millisecondsSince1970,
-            updatedAt: remote.updatedAt.millisecondsSince1970, deletedAt: remote.deletedAt?.millisecondsSince1970,
-            splits: remote.splits.map { Split(id: $0.id, userID: $0.userID, amountMinor: $0.amountMinor) }
         )
     }
 }

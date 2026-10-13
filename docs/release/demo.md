@@ -1,5 +1,7 @@
 # Demo: offline to online
 
+> **App Store 1.0 is local only.** The sync and account screens below come from the `TAB-Sync` build. See [local-only](../architecture/local-only.md).
+
 The acceptance scenario for the release is: **create an expense offline, reconnect, and see it on another device.**
 
 TAB has no real backend behind it (see [what was not verified](release-notes.md#not-verified)), so the demo has two

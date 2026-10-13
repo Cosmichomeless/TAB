@@ -70,7 +70,7 @@ public struct SQLiteExpenseRepository: ExpenseRepository {
                     ]
                 )
             }
-            try OutboxStore.enqueue(
+            try Outbox.enqueue(
                 .upsertExpense, entityID: expense.id, groupID: groupID,
                 payload: UpsertExpensePayload(expense: expense, splits: splits), in: db
             )
@@ -133,7 +133,7 @@ public struct SQLiteExpenseRepository: ExpenseRepository {
                 )
             }
             let updated = Self.expense(try db.query("SELECT * FROM expenses WHERE id = ?", [.text(id.uuidString)])[0])
-            try OutboxStore.enqueue(
+            try Outbox.enqueue(
                 .upsertExpense, entityID: id, groupID: groupID,
                 payload: UpsertExpensePayload(expense: updated, splits: splits), in: db
             )
@@ -175,7 +175,7 @@ public struct SQLiteExpenseRepository: ExpenseRepository {
             let splits = try db.query(
                 "SELECT * FROM expense_splits WHERE expense_id = ? ORDER BY rowid", [.text(id.uuidString)]
             ).map(Self.split)
-            try OutboxStore.enqueue(
+            try Outbox.enqueue(
                 .upsertExpense, entityID: id, groupID: deleted.groupID,
                 payload: UpsertExpensePayload(expense: deleted, splits: splits), in: db
             )
