@@ -20,6 +20,7 @@ targets:
     info:
       path: App/Info.plist
       properties:
+        ITSAppUsesNonExemptEncryption: false
         SupabaseURL: $(SUPABASE_URL)
         SupabaseAnonKey: $(SUPABASE_ANON_KEY)
     settings:
