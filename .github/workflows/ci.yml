@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "claude/**"]
+  pull_request:
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  localizations:
+    name: Localization catalog
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 scripts/check_localizations.py
+      - run: python3 scripts/check_app_store_metadata.py
+
+  swift-tests:
+    name: Swift package tests
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+      - run: swift --version
+      - run: swift test
+
+  app-build:
+    name: Build the TAB app
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install xcodegen
+      - run: xcodegen generate
+      - name: Build the shipping scheme (local only)
+        run: |
+          xcodebuild build -project TAB.xcodeproj -scheme TAB \
+            -destination 'generic/platform=iOS Simulator' -derivedDataPath build CODE_SIGNING_ALLOWED=NO | tail -20
+      - name: Build the sync scheme (not shipped, kept compiling)
+        run: |
+          xcodebuild build -project TAB.xcodeproj -scheme TAB-Sync \
+            -destination 'generic/platform=iOS Simulator' -derivedDataPath build CODE_SIGNING_ALLOWED=NO | tail -20
+      - name: The shipping binary links no sync or network code
+        run: |
+          # The products are named after their targets, so TAB.app is the shipping app and TAB-Sync.app is not scanned.
+          app=build/Build/Products/Debug-iphonesimulator/TAB.app
+          test -d "$app"
+          # Debug builds put the code in TAB.debug.dylib next to the launcher, so scan every Mach-O file.
+          find "$app" -type f \( -name 'TAB' -o -name '*.dylib' \) | while read -r binary; do
+            if strings "$binary" | grep -E 'SupabaseURL|SyncEngine|TABSync|NWPathMonitor'; then
+              echo "Sync or network code found in $binary" >&2; exit 1
+            fi
+          done
+          if grep -E 'Supabase' "$app/Info.plist"; then
+            echo "Supabase keys found in the shipping Info.plist" >&2; exit 1
+          fi

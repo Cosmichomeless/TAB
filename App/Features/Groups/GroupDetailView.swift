@@ -169,7 +169,7 @@ struct GroupDetailView: View {
             Button("Delete \"\(expense.title)\"", role: .destructive) {
                 Task {
                     do { try await model.deleteExpense(id: expense.id) }
-                    catch { actionError = "The expense could not be deleted." }
+                    catch { actionError = String(localized: "The expense could not be deleted.") }
                 }
             }
         } message: { _ in
@@ -231,7 +231,7 @@ struct GroupDetailView: View {
 
     private func member(_ id: UUID) -> User? { members.first { $0.id == id } }
 
-    private func name(of id: UUID) -> String { member(id)?.name ?? "Unknown" }
+    private func name(of id: UUID) -> String { member(id)?.name ?? String(localized: "Unknown") }
 
     private func signed(_ minor: Int64) -> String {
         (minor > 0 ? "+" : "") + group.currency.format(minorUnits: minor)
@@ -296,10 +296,10 @@ private struct Hero: View {
     @ViewBuilder
     private func balanceChip(_ minor: Int64) -> some View {
         let text: String = minor == 0
-            ? "You are settled"
+            ? String(localized: "You are settled")
             : minor > 0
-                ? "You are owed \(group.currency.format(minorUnits: minor))"
-                : "You owe \(group.currency.format(minorUnits: -minor))"
+                ? String(localized: "You are owed \(group.currency.format(minorUnits: minor))")
+                : String(localized: "You owe \(group.currency.format(minorUnits: -minor))")
         Text(text)
             .font(.footnote.weight(.semibold))
             .foregroundStyle(Color(red: 0.07, green: 0.20, blue: 0.24))
@@ -321,7 +321,7 @@ struct ExpenseRow: View {
             Avatar(name: payer?.name ?? "?", id: expense.paidBy, size: 40)
             VStack(alignment: .leading, spacing: 3) {
                 Text(expense.title).font(.body.weight(.medium)).lineLimit(2)
-                Text("Paid by \(payer?.name ?? "unknown") · \(expense.createdAt.formatted(date: .abbreviated, time: .omitted))")
+                Text("Paid by \(payer?.name ?? String(localized: "unknown")) · \(expense.createdAt.formatted(date: .abbreviated, time: .omitted))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -385,9 +385,9 @@ struct AddParticipantView: View {
                                 try await model.addParticipant(name: name, email: email, to: group.id)
                                 dismiss()
                             } catch DomainError.invalidEmail {
-                                errorMessage = "Enter a valid email or leave it empty."
+                                errorMessage = String(localized: "Enter a valid email or leave it empty.")
                             } catch {
-                                errorMessage = "Enter the participant's name."
+                                errorMessage = String(localized: "Enter the participant's name.")
                             }
                         }
                     }
@@ -477,7 +477,7 @@ struct ExpenseFormView: View {
                 .padding(16)
             }
             .brandScreen()
-            .navigationTitle(editing == nil ? "New expense" : "Edit expense")
+            .navigationTitle(editing == nil ? String(localized: "New expense") : String(localized: "Edit expense"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
@@ -548,7 +548,7 @@ struct ExpenseFormView: View {
     /// What is still to assign (or too much assigned) in percent and exact modes.
     private var modeHint: (text: String, isProblem: Bool)? {
         guard splitLoadState == .loaded, mode != .equal else { return nil }
-        guard mode != .shares else { return ("Each person pays in proportion to their parts. Leave a field empty to leave someone out.", false) }
+        guard mode != .shares else { return (String(localized: "Each person pays in proportion to their parts. Leave a field empty to leave someone out."), false) }
         guard let minor = group.currency.parse(minorUnits: amount), minor > 0,
               let left = SplitInput.remaining(
                 mode: mode, amountMinor: minor, participants: members.map(\.id), entries: entries, currency: group.currency
@@ -600,7 +600,7 @@ struct ExpenseFormView: View {
         do {
             guard let repository = model.expenseRepository else {
                 splitLoadState = .failed
-                message = "Could not load this expense's split. Try again."
+                message = String(localized: "Could not load this expense's split. Try again.")
                 return
             }
             let splits = try await repository.splits(of: editing.id)
@@ -614,14 +614,14 @@ struct ExpenseFormView: View {
             }
         } catch {
             splitLoadState = .failed
-            message = "Could not load this expense's split. Try again."
+            message = String(localized: "Could not load this expense's split. Try again.")
         }
     }
 
     private func save() async {
         guard !isSaving, splitLoadState == .loaded else { return }
         guard let minor = group.currency.parse(minorUnits: amount), minor > 0 else {
-            message = "Enter a valid amount."
+            message = String(localized: "Enter a valid amount.")
             return
         }
         isSaving = true
@@ -643,11 +643,11 @@ struct ExpenseFormView: View {
                                            amountMinor: minor, method: method)
             }
             dismiss()
-        } catch DomainError.emptyTitle { message = "Enter a title." }
-        catch DomainError.noParticipants { message = "Select at least one participant." }
-        catch DomainError.invalidSplitWeight { message = "Check the numbers in the split: use positive numbers only." }
-        catch DomainError.percentagesDoNotAddUp { message = "The percentages must add up to 100 %." }
-        catch DomainError.splitsDoNotMatchAmount { message = "The amounts must add up to the expense total." }
-        catch { message = "The expense could not be saved." }
+        } catch DomainError.emptyTitle { message = String(localized: "Enter a title.") }
+        catch DomainError.noParticipants { message = String(localized: "Select at least one participant.") }
+        catch DomainError.invalidSplitWeight { message = String(localized: "Check the numbers in the split: use positive numbers only.") }
+        catch DomainError.percentagesDoNotAddUp { message = String(localized: "The percentages must add up to 100 %.") }
+        catch DomainError.splitsDoNotMatchAmount { message = String(localized: "The amounts must add up to the expense total.") }
+        catch { message = String(localized: "The expense could not be saved.") }
     }
 }

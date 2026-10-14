@@ -1,3 +1,8 @@
+---
+title: Privacy Policy — TAB
+permalink: /privacy/
+---
+
 # Privacy Policy — TAB
 
 *Last updated: October 14, 2026.* · [Español más abajo](#política-de-privacidad)

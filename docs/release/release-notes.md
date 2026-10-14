@@ -1,63 +1,52 @@
-# TAB 1.0.0 — portfolio source tag
+# TAB 1.1.0 — first App Store release
 
-> **App Store 1.0 is local only.** The sync engine described below lives in `TABSync` and the `TAB-Sync` target and is not part of the shipping app. See [local-only](../architecture/local-only.md).
+Private group expenses that live on your iPhone: no account, no server, no network access. This is the local-only build (`TAB` scheme); the sync engine stays in the repository behind the `TAB-Sync` scheme and is not shipped. See [local-only](../architecture/local-only.md).
 
-First source tag: an offline-first expense splitting app for iOS 17, with a sync engine that is complete and tested
-but not connected to a real backend. This is not an App Store or hosted-backend release.
+The earlier `v1.0.0` tag is the portfolio source tag and was never published; its notes are archived in [release-notes-portfolio-1.0.0.md](release-notes-portfolio-1.0.0.md).
 
 ## What is included
 
-- **Groups and participants.** Create a group in a currency (EUR, USD, GBP or JPY), add people with or without an
-  email.
-- **Expenses.** Record who paid and split the amount equally; amounts are integers in minor units, so there is no
-  rounding drift.
-- **Expense editing.** Change a title, payer, amount or participants; an unchanged amount and participant set
-  preserve an existing unequal split. The form warns before changes that recalculate an equal split.
-- **Balances.** Net balance per person and suggested settlements, always derived from the ledger.
-- **Fully offline.** Every action reads and writes a local SQLite database. With no backend configured, nothing
-  waits for the network.
-- **Optimistic sync status.** A status bar and per-row badges show synced, waiting, failed or conflict without
-  blocking any flow.
-- **Conflict review.** Compare title, amount, payer, shares and deletion state before restoring a losing edit.
-- **Sync engine.** Outbox with idempotent operations, cursor-based pull, retry with backoff, crash recovery,
-  account binding and deterministic conflict handling. See
-  [offline architecture](../architecture/offline-architecture.md).
-- **App icon.** A single 1024 px icon in `App/Assets.xcassets`.
-- **Supabase schema.** Postgres tables, row level security and RPCs in `supabase/`, validated on a local Postgres.
-
-## Screenshots
-
-See [demo.md](demo.md) and [`screenshots/`](screenshots/).
+- **Groups and people.** A group per trip, flat or night out, in EUR, USD, GBP or JPY. People can be added by name, with or without an email, and do not need the app.
+- **Four ways to split.** Equally, by shares, by percentage or by exact amounts. Amounts are integers in minor units, so remainders are assigned deterministically and splits always add up to the total.
+- **Safe editing.** Change a title, payer, amount or participants. An unchanged amount and participant set keep an existing unequal split, and the form warns before a change recalculates it.
+- **Balances and settling up.** Net balance per person and a minimal set of suggested payments. Settling up opens PayPal or Revolut, or copies a Bizum number or IBAN, then records the payment. TAB never makes or processes a payment, and the payment details stay on the device.
+- **Share without a server.** Send a group as a `.tabgroup` file, a QR code or a `tab://` link, or share a who-owes-whom summary as text. Importing can update a group you already have or add it as a copy.
+- **Backup and restore.** Export every group to a `.tabbackup` file and restore it, for example on a new iPhone.
+- **Delete everything.** "Delete all data" in Settings, behind two confirmations.
+- **Languages.** English, Spanish, French, Italian, Portuguese and German. Dates and currency follow the device locale.
+- **Privacy.** No accounts, analytics, advertising or third-party SDKs. The app asks for no permission and its privacy manifest declares no collected data. See the [privacy policy](../privacy.md).
 
 ## Known limitations
 
-- Creating or recalculating an expense uses equal shares; the UI does not edit individual share amounts.
-- A conflict is detected per whole expense, never per field.
-- `server_seq` is assigned when a row is written rather than when its transaction commits; the pull overlap
-  mitigates this.
-- Backoff has no jitter.
-- The deletion timestamp comes from the device clock and the server compares it exactly, so two devices deleting the
-  same expense at different instants register as a conflict.
+- A shared group is a copy at that moment; later changes are not merged automatically. Importing the same group again offers to replace the expenses in the existing one.
+- One currency per group; there is no conversion.
+- "N people · M expenses" style summaries are not pluralised in every language (they read "1 expenses").
+- Amount fields accept `12.5` or `12,50`, but not thousands separators.
+- iPhone only, portrait only.
 
-See [section 7 of the architecture document](../architecture/offline-architecture.md#7-known-limitations) for detail.
+## Before submission
+
+These are release gates that need a person or a device, not code:
+
+| Gate | Where | Status |
+| --- | --- | --- |
+| A week of real use on a physical iPhone, 500+ expenses, force-quit and recovery, Dynamic Type, VoiceOver, dark mode | [device-validation.md](device-validation.md), issue #39 | **Open** |
+| Screenshots regenerated for the current UI and localised | [app-store/README.md](app-store/README.md) | **Open** |
+| Pages enabled so the privacy and support URLs resolve | repository settings → Pages → `main` / `docs` | **Open** |
+| TestFlight beta (20+ testers, 7 days without crashes) and App Review submission | [app-store/README.md](app-store/README.md), issue #49 | **Open** |
+| App record, categories, age rating, App Privacy, review notes, build upload and submission (web or Xcode; no MCP can do these) | [app-store/mcp-runbook.md](app-store/mcp-runbook.md) | **Open** |
+
+Record the outcome of the first row in [device-validation.md](device-validation.md) and link it here before the tag is cut.
+
+## Verified
+
+- `scripts/check_localizations.py`: every one of the 161 catalog entries is translated into the five languages, uses the same placeholders as the English text, and matches a string literal in the app sources. `scripts/check_app_store_metadata.py` checks the listing text against App Store Connect's field limits. Both run in CI on every push.
+- `swift test` for `TABCore` and `TABSync`, and a `TAB` simulator build, run in CI ([ci.yml](../../.github/workflows/ci.yml)). This workflow was added in the same change as this file and had not run when it was written; check its first result before relying on it.
+- The `TAB` target does not compile `App/Sync/` and links only `TABCore`; `Sources/TABCore` and `App/` contain no `URLSession` use. `App/PrivacyInfo.xcprivacy` declares the `UserDefaults` required-reason API (`CA92.1`) and nothing else, and the code uses no other required-reason API.
 
 ## Not verified
 
-This is what has not been checked, stated plainly:
-
-- **No real Supabase project has been used.** GoTrue, PostgREST and JWT handling are exercised only against stubs.
-  The SQL tests run on Postgres 14 with a stub `auth` schema, and `supabase/config.toml` has not been run through
-  the Supabase CLI.
-- **Two devices through a real server has not been demonstrated.** The scenario "create an expense offline,
-  reconnect, see it on another device" is demonstrated in tests against an in-memory server only.
-- The sync engine, scheduler, conflict policy and resilience tests only run against that in-memory fake, so any
-  difference between it and the real server would go unnoticed.
-- `HTTPTransport` has no tests, and the rollback path of a failing migration is not exercised.
-- The UI walkthrough exercises offline expense entry and editing; its demo conflict banner is not deterministic,
-  and no UI test drives a real backend.
-
-## How it was verified
-
-- `swift test`: 149 tests covering domain, persistence, editing, sync, conflicts and resilience.
-- `supabase/tests/run.sh`: the SQL, on a local Postgres.
-- `docs/release/export-screenshots.sh`: a UI walkthrough on an iPhone 17 Pro simulator.
+- The translations were written without a native-speaker review. Check truncation and Dynamic Type in German and French in particular.
+- The UI walkthrough (`UITests/WalkthroughUITests.swift`) drives the English UI only.
+- The app has not been run on a physical iPhone since the local-only split, the new split methods, sharing, backup and settle-up were added.
+- No network capture was taken to confirm that the app sends no traffic. The privacy claim rests on the code and the build graph above.

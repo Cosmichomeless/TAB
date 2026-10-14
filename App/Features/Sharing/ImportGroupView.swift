@@ -72,8 +72,8 @@ struct ImportGroupView: View {
                 }
                 .pickerStyle(.segmented)
                 Text(mode == .updateExisting
-                    ? "The expenses in your group are replaced by the ones in this file."
-                    : "Your group stays as it is and a new one is created.")
+                    ? String(localized: "The expenses in your group are replaced by the ones in this file.")
+                    : String(localized: "Your group stays as it is and a new one is created."))
                     .font(.footnote).foregroundStyle(.secondary)
                 if !canUpdate {
                     Text("Your group uses \(group.currency.code) and this one uses \(currency.code), so it cannot be updated.")
