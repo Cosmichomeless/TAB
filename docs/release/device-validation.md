@@ -40,8 +40,8 @@ TAB has only been exercised on simulators. Before the TestFlight build goes to t
 
 | Date | Device and iOS | Build | Tester | Outcome |
 | --- | --- | --- | --- | --- |
-| | | | | |
+| 2026-10-14 | Physical iPhone (model and iOS not recorded) | Not recorded | Owner | Reported OK; the individual checklist items were not recorded |
 
 Notes and defects found:
 
--
+- None reported. The owner confirmed the app works on a real iPhone, but did not record which checklist items were covered (week of use, 500+ expenses, force-quit recovery, Dynamic Type, VoiceOver, dark mode, other languages, no network traffic). Tick them off above as they are confirmed.

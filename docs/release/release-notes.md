@@ -30,7 +30,7 @@ These are release gates that need a person or a device, not code:
 
 | Gate | Where | Status |
 | --- | --- | --- |
-| A week of real use on a physical iPhone, 500+ expenses, force-quit and recovery, Dynamic Type, VoiceOver, dark mode | [device-validation.md](device-validation.md), issue #39 | **Open** |
+| A week of real use on a physical iPhone, 500+ expenses, force-quit and recovery, Dynamic Type, VoiceOver, dark mode | [device-validation.md](device-validation.md), issue #39 | **Partly done**: the owner reports it works on a real iPhone; the checklist items are not individually recorded |
 | Screenshots regenerated for the current UI and localised | [app-store/README.md](app-store/README.md) | **Open** |
 | Pages enabled so the privacy and support URLs resolve | repository settings → Pages → `main` / `docs` | **Open** |
 | TestFlight beta (20+ testers, 7 days without crashes) and App Review submission | [app-store/README.md](app-store/README.md), issue #49 | **Open** |
@@ -48,5 +48,5 @@ Record the outcome of the first row in [device-validation.md](device-validation.
 
 - The translations were written without a native-speaker review. Check truncation and Dynamic Type in German and French in particular.
 - The UI walkthrough (`UITests/WalkthroughUITests.swift`) drives the English UI only.
-- The app has not been run on a physical iPhone since the local-only split, the new split methods, sharing, backup and settle-up were added.
+- Physical iPhone: the owner reports the app works, but the individual checks in [device-validation.md](device-validation.md) (a week of use, 500+ expenses, force-quit recovery, accessibility, other languages) are not recorded.
 - No network capture was taken to confirm that the app sends no traffic. The privacy claim rests on the code and the build graph above.
