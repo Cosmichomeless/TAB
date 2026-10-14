@@ -20,8 +20,7 @@ The earlier `v1.0.0` tag is the portfolio source tag and was never published; it
 
 - A shared group is a copy at that moment; later changes are not merged automatically. Importing the same group again offers to replace the expenses in the existing one.
 - One currency per group; there is no conversion.
-- "N people · M expenses" style summaries are not pluralised in every language (they read "1 expenses").
-- Amount fields accept `12.5` or `12,50`, but not thousands separators.
+- Amount fields accept `12.5`, `12,50`, `1.234,50`, `1,234.50` and spaces or apostrophes as thousands separators. A lone `.` or `,` before exactly three digits (`1.234`) counts as thousands only when it is the device language's grouping separator; otherwise it is rejected rather than guessed, so `1.234` on an English device is an error, not 1 234.
 - iPhone only, portrait only.
 
 ## Before submission
@@ -30,7 +29,7 @@ These are release gates that need a person or a device, not code:
 
 | Gate | Where | Status |
 | --- | --- | --- |
-| A week of real use on a physical iPhone, 500+ expenses, force-quit and recovery, Dynamic Type, VoiceOver, dark mode | [device-validation.md](device-validation.md), issue #39 | **Open** |
+| A week of real use on a physical iPhone, 500+ expenses, force-quit and recovery, Dynamic Type, VoiceOver, dark mode | [device-validation.md](device-validation.md), issue #39 | **Partly done**: the owner reports it works on a real iPhone; the checklist items are not individually recorded |
 | Screenshots regenerated for the current UI and localised | [app-store/README.md](app-store/README.md) | **Open** |
 | Pages enabled so the privacy and support URLs resolve | repository settings → Pages → `main` / `docs` | **Open** |
 | TestFlight beta (20+ testers, 7 days without crashes) and App Review submission | [app-store/README.md](app-store/README.md), issue #49 | **Open** |
@@ -48,5 +47,5 @@ Record the outcome of the first row in [device-validation.md](device-validation.
 
 - The translations were written without a native-speaker review. Check truncation and Dynamic Type in German and French in particular.
 - The UI walkthrough (`UITests/WalkthroughUITests.swift`) drives the English UI only.
-- The app has not been run on a physical iPhone since the local-only split, the new split methods, sharing, backup and settle-up were added.
+- Physical iPhone: the owner reports the app works, but the individual checks in [device-validation.md](device-validation.md) (a week of use, 500+ expenses, force-quit recovery, accessibility, other languages) are not recorded.
 - No network capture was taken to confirm that the app sends no traffic. The privacy claim rests on the code and the build graph above.

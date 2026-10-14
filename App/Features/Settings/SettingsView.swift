@@ -134,6 +134,13 @@ struct RestoreBackupView: View {
         Date(timeIntervalSince1970: TimeInterval(backup.exportedAt) / 1000).formatted(date: .abbreviated, time: .omitted)
     }
 
+    /// "2 groups · 1 expense": each count agrees in number on its own, so the sentence works in every language.
+    private var countsLine: String {
+        let groups = String(localized: "\(backup.groups.count) groups")
+        let expenses = String(localized: "\(expenseCount) expenses")
+        return "\(groups) · \(expenses)"
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -141,7 +148,7 @@ struct RestoreBackupView: View {
                     CardSection("Backup") {
                         VStack(alignment: .leading, spacing: 8) {
                             Text(backup.me.name).font(.title2.weight(.semibold))
-                            Text("\(backup.groups.count) groups · \(expenseCount) expenses")
+                            Text(countsLine)
                                 .foregroundStyle(.secondary)
                             Text("Made on \(exportedOn)").foregroundStyle(.secondary)
                             if !backup.groups.isEmpty {

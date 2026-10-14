@@ -67,7 +67,7 @@ Accounts, synchronization, a backend, payments or bank connections, receipt phot
 
 ### 4. Expenses and splits
 
-1. Inside a group, the user taps "Add expense" and enters a title and an amount (`12.5` and `12,50` both work).
+1. Inside a group, the user taps "Add expense" and enters a title and an amount (`12.5`, `12,50`, `1.234,50` and `1,234.50` all work; a lone separator before three digits follows the device language).
 2. The user picks the payer and the split method:
    - **Equal:** shared among the selected participants; leftover cents are assigned deterministically.
    - **Shares:** each person pays in proportion to their parts; an empty field leaves someone out.

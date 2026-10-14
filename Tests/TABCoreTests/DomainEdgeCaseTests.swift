@@ -63,7 +63,7 @@ struct DomainEdgeCaseTests {
 
     @Test(arguments: ["", ".", "abc", "1.234", "1.2.3", "-5", "1e3", "٣"])
     func rejectsMalformedAmounts(text: String) {
-        #expect(Currency.eur.parse(minorUnits: text) == nil)
+        #expect(Currency.eur.parse(minorUnits: text, locale: Locale(identifier: "en_US")) == nil)
     }
 
     // MARK: - Repositories
