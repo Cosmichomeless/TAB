@@ -34,6 +34,7 @@ These are release gates that need a person or a device, not code:
 | Screenshots regenerated for the current UI and localised | [app-store/README.md](app-store/README.md) | **Open** |
 | Pages enabled so the privacy and support URLs resolve | repository settings → Pages → `main` / `docs` | **Open** |
 | TestFlight beta (20+ testers, 7 days without crashes) and App Review submission | [app-store/README.md](app-store/README.md), issue #49 | **Open** |
+| App record, categories, age rating, App Privacy, review notes, build upload and submission (web or Xcode; no MCP can do these) | [app-store/mcp-runbook.md](app-store/mcp-runbook.md) | **Open** |
 
 Record the outcome of the first row in [device-validation.md](device-validation.md) and link it here before the tag is cut.
 

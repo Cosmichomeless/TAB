@@ -2,6 +2,8 @@
 
 Everything the App Store Connect side of the release needs, collected from the repository so nothing has to be invented there. Issue #49 tracks the work; #47 (compliance) and #48 (localisation) feed it.
 
+**Driving this with an MCP?** Read [mcp-runbook.md](mcp-runbook.md) first. The MCP planned for this ([appstore-connect-mcp](https://github.com/SardorbekR/appstore-connect-mcp)) can write the listing text, URLs, price, screenshots and testers, but it cannot create the app record, upload a build, set categories, age rating, App Privacy or review notes, attach a build to a version, create TestFlight groups or submit for review. Those steps are manual and are marked in the runbook.
+
 Listing text for each language lives next to this file (`en-US.md`, `es-ES.md`, `fr-FR.md`, `it.md`, `pt-PT.md`, `de-DE.md`), one `##` section per App Store Connect field, and `scripts/check_app_store_metadata.py` checks the character limits. Use `pt-PT` text for `pt-BR` as well, and `es-ES` for `es-MX`, unless a native speaker adapts it.
 
 ## App record
@@ -90,8 +92,8 @@ Navigate to each screen by hand and repeat `screenshot`. `UITests/WalkthroughUIT
 1. Merge this branch; confirm the first CI run is green.
 2. Enable GitHub Pages and check the two URLs.
 3. Complete [device-validation.md](../device-validation.md) on a real iPhone (issue #39). Fix whatever it finds.
-4. Create the app record, add the six localisations from the files here, fill App Privacy, age rating, pricing and the EU trader declaration.
-5. Regenerate and upload screenshots for every language.
+4. In the web: create the app record (no API or MCP can), set the version to `1.1.0`, categories, age rating, App Privacy, review contact and notes, and the EU trader declaration. Then let the MCP add the six localisations, URLs and price ([runbook](mcp-runbook.md)).
+5. Regenerate screenshots on a Mac for every language; the MCP uploads them into existing screenshot sets.
 6. Archive and upload a build (Release, with a team and an incremented build number):
    ```sh
    xcodebuild archive -project TAB.xcodeproj -scheme TAB -configuration Release \
@@ -100,9 +102,9 @@ Navigate to each screen by hand and repeat `screenshot`. `UITests/WalkthroughUIT
    xcodebuild -exportArchive -archivePath build/TAB.xcarchive -exportOptionsPlist ExportOptions.plist -exportPath build/export
    ```
    (`ExportOptions.plist` with `method = app-store-connect` is not committed because it carries the team id.)
-7. TestFlight: internal testing first, then an external group of at least 20 testers with the built-in feedback form. Exit criteria from #49: no crashes for 7 days and an average rating of 4/5 or more. Beta goal from #37: 50 groups created with 3 or more participants.
-8. Keyword research (`keyword_insights`, `competitor_snapshot`) for 30–50 candidates; the keywords in the locale files are a starting point, not researched. Do not use competitor names in keywords, which App Review rejects.
-9. Submit for review, then tag the release (`v1.1.0`, not `v1.0.0`, which already exists) and publish a GitHub Release.
+7. TestFlight: create the groups in the web, then add testers with the MCP. Internal testing first, then an external group of at least 20 testers with the built-in feedback form. Exit criteria from #49: no crashes for 7 days and an average rating of 4/5 or more. Beta goal from #37: 50 groups created with 3 or more participants.
+8. Keyword research for 30–50 candidates (the MCP has no keyword tool; use asc's `keyword_insights` / `competitor_snapshot` or another source); the keywords in the locale files are a starting point, not researched. Do not use competitor names in keywords, which App Review rejects.
+9. Attach the build and submit for review in the web (the MCP cannot), then tag the release (`v1.1.0`, not `v1.0.0`, which already exists) and publish a GitHub Release.
 10. Launch plan (Product Hunt, Reddit, travel communities) after approval.
 
 ## Open decisions for the owner
