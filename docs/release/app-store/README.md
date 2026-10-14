@@ -1,6 +1,6 @@
 # App Store Connect handoff
 
-Everything the App Store Connect side of the release needs, collected from the repository so nothing has to be invented there. Issue #49 tracks the work; #47 (compliance) and #48 (localisation) feed it.
+Everything the App Store Connect side of the release needs, collected from the repository so nothing has to be invented there. Issue #62 tracks the work; #47 (compliance) is still open. #49 and #48 are closed.
 
 **Driving this with an MCP?** Read [mcp-runbook.md](mcp-runbook.md) first. The MCP planned for this ([appstore-connect-mcp](https://github.com/SardorbekR/appstore-connect-mcp)) can write the listing text, URLs, price, screenshots and testers, but it cannot create the app record, upload a build, set categories, age rating, App Privacy or review notes, attach a build to a version, create TestFlight groups or submit for review. Those steps are manual and are marked in the runbook.
 
@@ -62,7 +62,7 @@ Paste into *App Review Information → Notes*; no demo account is needed:
 
 ## Screenshots
 
-Required sizes per issue #49: iPhone 6.9" (1320 × 2868) and 6.5" (1284 × 2778). Six screens per language, with these captions (each locale file has them translated):
+Required sizes (from the original release plan, #49): iPhone 6.9" (1320 × 2868) and 6.5" (1284 × 2778). Six screens per language, with these captions (each locale file has them translated):
 
 1. No account. Just your name. (onboarding)
 2. Works offline. (group list)
@@ -91,7 +91,7 @@ Navigate to each screen by hand and repeat `screenshot`. `UITests/WalkthroughUIT
 
 1. Merge this branch; confirm the first CI run is green.
 2. Enable GitHub Pages and check the two URLs.
-3. Complete [device-validation.md](../device-validation.md) on a real iPhone (issue #39). Fix whatever it finds.
+3. Record the results of [device-validation.md](../device-validation.md) from the real-iPhone test and fix whatever it found (the owner reports it works).
 4. In the web: create the app record (no API or MCP can), set the version to `1.1.0`, categories, age rating, App Privacy, review contact and notes, and the EU trader declaration. Then let the MCP add the six localisations, URLs and price ([runbook](mcp-runbook.md)).
 5. Regenerate screenshots on a Mac for every language; the MCP uploads them into existing screenshot sets.
 6. Archive and upload a build (Release, with a team and an incremented build number):
