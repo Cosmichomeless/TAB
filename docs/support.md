@@ -25,7 +25,7 @@ Open an issue at <https://github.com/Cosmichomeless/TAB/issues>. If you can, inc
 
 **How do I delete my data?** Settings → Delete all data, or delete the app. Nothing is stored anywhere else.
 
-Privacy: see the [privacy policy](privacy/).
+Privacy: see the [privacy policy](../privacy/).
 
 ---
 
@@ -49,4 +49,4 @@ Abre una incidencia en <https://github.com/Cosmichomeless/TAB/issues>. Si puedes
 
 **¿Cómo borro mis datos?** Ajustes → Borrar todos los datos, o elimina la app. No se guarda nada en ningún otro sitio.
 
-Privacidad: consulta la [política de privacidad](privacy/).
+Privacidad: consulta la [política de privacidad](../privacy/).
