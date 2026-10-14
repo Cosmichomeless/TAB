@@ -1,114 +1,107 @@
-# TAB — MVP and User Flows
+# TAB — product scope and user flows
 
-This document defines the scope of the first version of TAB and the user flows it must support. It is derived from the MVP and roadmap sections of the README.
+This document defines what TAB 1.1 (the first App Store release) does and what it deliberately does not. It supersedes the original MVP, which assumed accounts and synchronization; that design is kept in the `TAB-Sync` build (see [local-only](../architecture/local-only.md)).
 
-## Goals
+## Positioning
 
-- Let a group of people record shared expenses and know who owes whom.
-- Work fully offline: no core flow may depend on network availability.
-- Reflect every local action in the UI immediately (optimistic updates).
-- Synchronize with the backend after reconnection and expose the synchronization status.
+**Private group expenses, on your iPhone.** Splitwise, Tricount, Settle Up and Splid own the "shared expenses with accounts and a cloud" space. TAB takes the opposite and defensible angle:
+
+- **No account, no server.** The first screen asks one question, your name. Groups, expenses and balances live in a SQLite database on the device.
+- **No network.** The app contains no network code and asks for no permission. The claim is checkable: the `TAB` target links only `TABCore`, and the App Store privacy label is "Data Not Collected".
+- **Exact and fair.** Splits by equal share, shares, percentage or exact amount, in integer minor units, always adding up to the total.
+- **Easy to hand over.** A group travels as a file, a QR code or a link, and a who-owes-whom summary pastes into any chat. Settling up opens PayPal or Revolut, or copies a Bizum number or IBAN, without TAB ever handling money.
+
+Target users: friends on a trip, flatmates, and anyone who splits costs with a small group and does not want to create an account to do it. The first markets are Spanish-speaking, with French, Italian, Portuguese and German at launch.
+
+### Beta goals (issue #37)
+
+- First expense in under 60 seconds from install, without entering personal data beyond a name.
+- 50 groups created with 3 or more participants during the TestFlight beta; use them to prioritise 1.2 (candidates: multi-currency, receipt photos, PDF/CSV export).
 
 ## Actors
 
 | Actor | Description |
 |-------|-------------|
-| User | A registered person with an account (`id`, `name`, `email`). |
-| Group creator | The user who created a group. |
-| Member | A user who belongs to a group and can take part in its expenses. |
+| You | The person who owns the install. Entered once at first launch. |
+| Participant | Anyone added to a group by name, with or without an email. They do not need the app. |
 
-## MVP Scope
+## Scope of 1.1
 
 ### In scope
 
-1. Registration and login
-2. Group creation
-3. Adding participants to a group
-4. Expense entry: title, amount, currency, payer and participants
-5. Equal split among the selected participants
-6. Net balance calculation per member
-7. Settlement suggestions
-8. Group expense history
-9. Local persistence
-10. Full basic functionality while offline
-11. Optimistic updates
-12. Synchronization after reconnection
-13. Synchronization status per change
+1. First-launch profile (name only)
+2. Groups with a currency (EUR, USD, GBP, JPY)
+3. Participants
+4. Expenses: title, amount, payer, participants
+5. Four split methods: equal, shares, percentages, exact amounts
+6. Editing and deleting expenses
+7. Net balance per person and suggested settlements
+8. Settling up: record a payment, with PayPal, Revolut, Bizum and IBAN shortcuts
+9. Share a group (file, QR code, link) and a text summary; import with update or copy
+10. Backup, restore and delete all data
+11. Full offline operation (there is no online)
+12. Localisation: English, Spanish, French, Italian, Portuguese, German
 
 ### Out of scope
 
-Complex split strategies (by percentage, shares or exact amounts), payments, bank integrations, receipt OCR, automatic currency conversion, chat, social features, AI features and advanced analytics. The only split strategy in the MVP is equal splitting.
+Accounts, synchronization, a backend, payments or bank connections, receipt photos and OCR, currency conversion, notifications, chat, social features, analytics and iPad or Mac layouts. Multi-currency expenses (#42), receipt photos (#43) and PDF/CSV export (#44) are candidates for a later version.
 
-## User Flows
+## User flows
 
-### 1. Registration and login
+### 1. First launch
 
-1. The user opens the app for the first time and chooses to register.
-2. The user enters name, email and password.
-3. The account is created and the user lands on the group list.
-4. On later launches, the user logs in with email and password, or resumes the stored session.
-
-Notes:
-
-- Authentication needs connectivity the first time. After a successful login, the session is kept locally so the app remains usable offline.
+1. The user opens the app and sees one question: "What should we call you?"
+2. The user enters a name and continues. No other data is requested and no permission is asked.
+3. The user lands on an empty group list.
 
 ### 2. Group creation
 
 1. From the group list, the user taps "New group".
-2. The user enters a group name.
-3. The group is stored locally, appears in the list immediately and is marked as pending synchronization.
-4. The creator is added automatically as the first member.
+2. The user enters a name and picks a currency. Every expense in the group uses that currency.
+3. The group appears in the list at once; the user is its first participant.
 
-### 3. Adding participants
+### 3. Participants
 
-1. Inside a group, the user opens the member list and taps "Add participant".
-2. The user adds a participant by name or email.
-3. The membership is stored locally, shown immediately and marked as pending synchronization.
+1. Inside a group, the user taps "Add participant".
+2. The user enters a name, and optionally an email. An invalid email is rejected.
 
-### 4. Expense entry
+### 4. Expenses and splits
 
-1. Inside a group, the user taps "Add expense".
-2. The user enters a title and an amount, and the currency defaults to the group currency.
-3. The user selects the payer (defaults to the current user).
-4. The user selects the participants who share the expense (defaults to all members).
-5. The user confirms. The expense is stored locally, shown immediately in the history and marked as pending synchronization.
+1. Inside a group, the user taps "Add expense" and enters a title and an amount (`12.5` and `12,50` both work).
+2. The user picks the payer and the split method:
+   - **Equal:** shared among the selected participants; leftover cents are assigned deterministically.
+   - **Shares:** each person pays in proportion to their parts; an empty field leaves someone out.
+   - **Percent:** percentages must add up to 100.
+   - **Exact:** amounts must add up to the expense total. The form shows what is left to assign.
+3. The expense is saved locally and listed at once.
 
-Validation:
+Validation: the title is required, the amount must be greater than zero, at least one participant is required, and the split must be consistent with the amount.
 
-- The title is required and the amount must be greater than zero.
-- At least one participant is required.
-- The payer must be a group member.
+### 5. Editing and deleting
 
-### 5. Equal split
+1. Tapping an expense opens it for editing. If the amount and participants stay the same, an existing custom split is kept; otherwise the form warns that the split will be recalculated.
+2. Swipe or long-press to delete, with confirmation. Balances are recalculated.
 
-1. When an expense is confirmed, its amount is divided equally among the selected participants.
-2. Amounts are handled in minor units (cents) to avoid floating point errors.
-3. When the amount does not divide evenly, the remainder cents are assigned deterministically so that the splits always add up to the total.
-4. One `ExpenseSplit` per participant is stored.
+### 6. Balances and settling up
 
-### 6. Balances
+1. The group screen shows the total spent, where the user stands, each person's net balance and a minimal set of suggested payments. A positive balance means the person is owed money.
+2. Balances are always derived from the expenses and never stored.
+3. Tapping a suggested payment opens "Settle up": the user can store how someone prefers to be paid (on this iPhone only), open PayPal or Revolut or copy the Bizum number or IBAN, and "Mark as paid" to record the payment as an expense so the balances update.
 
-1. The group screen shows each member's net balance, derived from expenses and splits.
-2. A positive balance means the member is owed money; a negative balance means the member owes money.
-3. The app suggests a minimal set of transfers that settles all debts.
-4. Balances are always derived from source data and never stored as an independent source of truth.
+### 7. Sharing
 
-### 7. Expense history
+1. "Share group" creates a snapshot: a QR code, a `.tabgroup` file and a `tab://` link, plus a text summary of who owes whom.
+2. Opening one of them in TAB shows what it contains and asks how to import it: update the group you already have, or add a copy; and which participant is "you".
+3. Nothing is uploaded. A shared group is a copy; later changes are not shared automatically.
 
-1. The group screen lists expenses from newest to oldest.
-2. Each entry shows title, amount, payer and synchronization status.
+### 8. Backup, restore and delete
 
-### 8. Offline use and synchronization
+1. Settings exports every group to a `.tabbackup` file and restores from one (replacing what is on the iPhone, after confirmation).
+2. "Delete all data" removes every group, expense and the profile after two confirmations.
+3. Settings also links to the privacy policy and the support page.
 
-1. With no connectivity, flows 2 to 7 behave exactly as they do online.
-2. Each local change carries a status: `Synced`, `Pending`, `Failed` or `Conflict`.
-3. When connectivity returns, pending changes synchronize in the background without user action.
-4. The user can see which changes are still pending or have failed.
+## Decisions taken
 
-## Open Questions
-
-- Group currency: single currency per group, or per expense with no conversion?
-- How participants without an account are represented before they register.
-- Whether expense editing and deletion belong in the MVP or in the conflict handling phase.
-
-These questions are tracked in the related architecture and data model issues.
+- One currency per group, with no conversion.
+- People without the app are first-class participants.
+- Expense editing and deletion are in scope.

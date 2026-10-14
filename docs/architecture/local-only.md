@@ -1,6 +1,6 @@
 # Local-only build
 
-TAB 1.0 ships without accounts, sync or any network access. The sync design in this folder still exists and is tested; it is kept out of the app that goes to the App Store.
+TAB 1.1 ships without accounts, sync or any network access. The sync design in this folder still exists and is tested; it is kept out of the app that goes to the App Store.
 
 ## What ships
 
@@ -17,7 +17,7 @@ TAB 1.0 ships without accounts, sync or any network access. The sync design in t
 
 ## Verification
 
-- `swift test`: 106 tests in `TABSyncTests` and 43 in `TABCoreTests`, 149 in total, unchanged by the split.
+- `swift test`: `TABCoreTests` (domain, persistence, sharing) and `TABSyncTests` (sync) are separate targets, so the local app's tests do not depend on the sync code. CI runs both.
 - Both schemes build: `xcodebuild -scheme TAB` and `xcodebuild -scheme TAB-Sync`.
 - The `TAB` binary and its `Info.plist` contain no `Supabase`, `SyncEngine`, `TABSync` or `NWPathMonitor` strings (checked with `strings`).
 - The UI walkthrough asserts that there is no Account button and no sync status in the local app.

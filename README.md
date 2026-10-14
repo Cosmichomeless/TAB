@@ -2,9 +2,9 @@
 
 # TAB
 
-**Split group expenses offline and see exactly what each person owes.**
+**Private group expenses on your iPhone. No account, no server, no network.**
 
-![Status: MVP, no public backend](https://img.shields.io/badge/status-MVP%20local%20demo-yellow) ![SwiftUI](https://img.shields.io/badge/SwiftUI-iOS-teal) ![License: MIT](https://img.shields.io/badge/license-MIT-green)
+![Status: App Store candidate](https://img.shields.io/badge/status-1.1%20release%20candidate-teal) ![SwiftUI](https://img.shields.io/badge/SwiftUI-iOS-teal) ![License: MIT](https://img.shields.io/badge/license-MIT-green)
 
 [Try it](#try-it) · [Screenshots](#screenshots) · [Architecture](#architecture) · [Documentation](#documentation)
 
@@ -17,8 +17,12 @@ TAB is a native iOS expense-sharing app whose local SQLite database is the sourc
 ## What it includes
 
 - **Offline-first groups:** create a group, add people and record expenses without waiting for a server.
-- **Exact balances:** amounts use integer minor units; equal splits distribute remainders deterministically.
+- **Four ways to split:** equally, by shares, by percentage or by exact amounts, in integer minor units so splits always add up.
+- **Exact balances:** net balance per person and suggested payments, always derived from the ledger.
 - **Safe editing:** edit a shared expense while preserving an existing unequal split unless the amount or participants change.
+- **Settle up and share:** PayPal, Revolut, Bizum and IBAN shortcuts (TAB never handles money); share a group as a file, QR code or link, or a who-owes-whom summary as text.
+- **Backup, restore, delete:** one file with every group, and a way to erase everything.
+- **Six languages:** English, Spanish, French, Italian, Portuguese and German.
 - **No account, no network:** the shipping app has no sign-in, no analytics and no network code; it asks for no permission.
 - **Sync (separate build):** the `TAB-Sync` target adds sync states and conflict review on top of the same local database.
 
@@ -64,44 +68,49 @@ The solid path is the shipping app (`TAB`, which links only `TABCore`). The dash
 | --- | --- | --- |
 | **SQLite as source of truth instead of server-first requests** | Groups and balances respond offline. | Sync and recovery logic must be owned by the app. |
 | **Integer minor units instead of floating point** | Splits and balances stay exact. | Currency formatting and parsing need explicit rules. |
-| **Equal splits instead of arbitrary split editing** | Remainders are deterministic across devices. | Changing an amount or participant set replaces a custom split with an equal one. |
+| **Explicit split methods over free-form editing** | Shares, percentages and exact amounts are validated against the total, and remainders are deterministic. | Changing an amount or participant set replaces a custom split with an equal one, after a warning. |
 | **Versioned outbox instead of last-write-wins silently** | A losing edit can be inspected and restored. | More state and conflict UI to maintain. |
 
 ## Known limitations
 
 - The shipping app is local only; sync is not offered to users. No Supabase project is provisioned. Multi-device convergence is verified against an in-memory server, not a live deployment.
-- Equal splitting is the creation flow; the editor preserves a pre-existing unequal split only while amount and participants stay the same.
-- Payments, bank connections, automatic currency conversion and receipt OCR are out of scope.
-- The source is tagged v1.0.0 for the portfolio; no GitHub Release or App Store build has been published. The [release notes](docs/release/release-notes.md) distinguish what was tested from what was not.
+- The editor preserves a custom split only while the amount and participants stay the same; otherwise it recalculates an equal split, after a warning.
+- One currency per group; payments, bank connections, currency conversion and receipt OCR are out of scope.
+- `v1.0.0` is the portfolio source tag. The App Store release is 1.1.0 and has not been submitted yet: the physical-iPhone validation, localised screenshots and TestFlight are still open. The [release notes](docs/release/release-notes.md) list what was verified and what was not.
 
 ## Quality
 
-- 149 Swift package tests pass across domain, persistence, balances, editing and sync; this is not a claim of production backend coverage.
-- UI walkthroughs exercise onboarding, offline expense entry and editing on an iPhone simulator. The conflict banner depends on the demo state and is not a deterministic screenshot assertion.
-- The offline-to-online two-device scenario runs against an in-memory backend. No hosted CI is claimed here.
+- Swift package tests cover domain, persistence, split methods, balances, sharing, payment links and (in `TABSyncTests`) the sync engine. Run `swift test`; GitHub Actions runs it with a simulator build and the localisation check on every push ([ci.yml](.github/workflows/ci.yml)).
+- UI walkthroughs exercise onboarding, offline expense entry and editing on an iPhone simulator, in English.
+- The two-device sync scenario runs against an in-memory backend and belongs to the unshipped `TAB-Sync` build.
+- Not yet done: a week of use on a physical iPhone ([checklist](docs/release/device-validation.md)).
 
 ## Documentation
 
 | Document | Contents |
 | --- | --- |
-| [Product MVP](docs/product/mvp.md) | User flows and scope. |
+| [Product scope](docs/product/mvp.md) | Positioning, user flows and scope of 1.1. |
+| [Privacy policy](docs/privacy.md) · [Support](docs/support.md) | Published with GitHub Pages and linked from Settings. |
+| [App Store handoff](docs/release/app-store/README.md) | Listing text in six languages, privacy and review answers. |
 | [Offline architecture](docs/architecture/offline-architecture.md) | Storage, sync and trade-offs. |
 | [Data model](docs/architecture/data-model.md) | Users, expenses, splits and balances. |
 | [Local only](docs/architecture/local-only.md) | What ships, what is behind `SYNC`, and how it is verified. |
 | [Sync protocol](docs/architecture/sync-protocol.md) | Outbox, retries and convergence (`TABSync`). |
 | [Conflict policy](docs/architecture/conflict-policy.md) | Resolution and restoration. |
 | [Demo](docs/release/demo.md) · [Release notes](docs/release/release-notes.md) | Screenshots and validation boundaries. |
+| [Device validation](docs/release/device-validation.md) | Checklist for the physical-iPhone gate. |
 
 ## Repository layout
 
-    App/               SwiftUI screens and icon-driven theme
+    App/               SwiftUI screens, theme and Localizable.xcstrings
     Sources/TABCore/   Domain, SQLite repositories, balances
     Sources/TABSync/   Sync engine, auth and Supabase client (TAB-Sync build only)
     Tests/             Domain, persistence and sync tests
+    scripts/           Repository checks (localisation catalog)
     UITests/           Simulator walkthroughs
     supabase/          Schema and RPCs (not deployed for this demo)
     docs/              Architecture decisions, demo and release evidence
 
 ## Distribution and license
 
-No production backend or App Store version is deployed. Credentials are supplied per build if a developer configures their own backend. Licensed under [MIT](LICENSE).
+No backend is deployed and the app is not on the App Store yet. Credentials are only used by the unshipped `TAB-Sync` build, supplied per build by a developer who configures their own backend. Licensed under [MIT](LICENSE).
