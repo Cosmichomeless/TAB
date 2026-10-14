@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% if page.url == '/' %}TAB · Private group expenses{% else %}{{ page.title }}{% endif %}</title>
+  <meta name="description" content="{{ site.description }}">
+  <meta name="theme-color" content="#145a7c">
+  <link rel="icon" type="image/png" href="{{ '/assets/icon.png' | relative_url }}">
+  <link rel="apple-touch-icon" href="{{ '/assets/icon.png' | relative_url }}">
+  <link rel="stylesheet" href="{{ '/assets/site.css' | relative_url }}">
+  <script>
+    // Pick the language before first paint; without JavaScript both languages are shown.
+    (function () {
+      var lang = 'en';
+      try {
+        var saved = localStorage.getItem('tab-lang');
+        lang = saved || ((navigator.language || 'en').slice(0, 2) === 'es' ? 'es' : 'en');
+      } catch (e) {
+        lang = (navigator.language || 'en').slice(0, 2) === 'es' ? 'es' : 'en';
+      }
+      document.documentElement.setAttribute('data-lang', lang);
+    })();
+  </script>
+</head>
+<body class="page-{{ page.name | split: '.' | first }}">
+  <header class="site-header">
+    <div class="bar">
+      <a class="brand" href="{{ '/' | relative_url }}">
+        <img src="{{ '/assets/icon.png' | relative_url }}" alt="" width="36" height="36">
+        <span>TAB</span>
+      </a>
+      <nav aria-label="Main">
+        <a href="{{ '/privacy/' | relative_url }}"{% if page.url == '/privacy/' %} aria-current="page"{% endif %}><span class="lang" lang="en">Privacy</span><span class="lang" lang="es">Privacidad</span></a>
+        <a href="{{ '/support/' | relative_url }}"{% if page.url == '/support/' %} aria-current="page"{% endif %}><span class="lang" lang="en">Support</span><span class="lang" lang="es">Soporte</span></a>
+        <a href="https://github.com/Cosmichomeless/TAB">GitHub</a>
+      </nav>
+      <div class="switch" role="group" aria-label="Language">
+        <button type="button" data-set-lang="en">EN</button>
+        <button type="button" data-set-lang="es">ES</button>
+      </div>
+    </div>
+  </header>
+
+  {{ content }}
+
+  <footer class="site-footer">
+    <p>© 2026 David Rodríguez · <a href="https://github.com/Cosmichomeless/TAB/blob/main/LICENSE">MIT</a> ·
+      <a href="https://github.com/Cosmichomeless/TAB/issues"><span class="lang" lang="en">Report a problem</span><span class="lang" lang="es">Informar de un problema</span></a></p>
+  </footer>
+
+  <script>
+    document.querySelectorAll('[data-set-lang]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        var lang = button.getAttribute('data-set-lang');
+        document.documentElement.setAttribute('data-lang', lang);
+        try { localStorage.setItem('tab-lang', lang); } catch (e) {}
+      });
+    });
+  </script>
+</body>
+</html>

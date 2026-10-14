@@ -1,11 +1,16 @@
 ---
+layout: default
 title: Privacy Policy — TAB
 permalink: /privacy/
 ---
 
+<main class="doc"><div class="prose">
+
+<div class="lang" lang="en" markdown="1">
+
 # Privacy Policy — TAB
 
-*Last updated: October 14, 2026.* · [Español más abajo](#política-de-privacidad)
+*Last updated: October 14, 2026.*
 
 **Summary: TAB does not collect your data.** There are no accounts, no analytics, no advertising and no third-party SDKs. The app does not track you.
 
@@ -46,7 +51,9 @@ If this policy changes, the new version will be published at this address with a
 
 Questions about privacy: open an issue at <https://github.com/Cosmichomeless/TAB/issues>.
 
----
+</div>
+
+<div class="lang" lang="es" markdown="1">
 
 # Política de privacidad
 
@@ -90,3 +97,7 @@ Si esta política cambia, la nueva versión se publicará en esta misma direcci�
 ## Contacto
 
 Dudas sobre privacidad: abre una incidencia en <https://github.com/Cosmichomeless/TAB/issues>.
+
+</div>
+
+</div></main>

@@ -1,11 +1,14 @@
 ---
+layout: default
 title: Support — TAB
 permalink: /support/
 ---
 
-# TAB — Support
+<main class="doc"><div class="prose">
 
-*English · [Español más abajo](#soporte)*
+<div class="lang" lang="en" markdown="1">
+
+# TAB — Support
 
 TAB is a private expense-splitting app. It has no accounts and no server, so your groups and expenses live only on your iPhone, and we cannot see or recover them for you.
 
@@ -27,7 +30,9 @@ Open an issue at <https://github.com/Cosmichomeless/TAB/issues>. If you can, inc
 
 Privacy: see the [privacy policy](../privacy/).
 
----
+</div>
+
+<div class="lang" lang="es" markdown="1">
 
 # Soporte
 
@@ -50,3 +55,7 @@ Abre una incidencia en <https://github.com/Cosmichomeless/TAB/issues>. Si puedes
 **¿Cómo borro mis datos?** Ajustes → Borrar todos los datos, o elimina la app. No se guarda nada en ningún otro sitio.
 
 Privacidad: consulta la [política de privacidad](../privacy/).
+
+</div>
+
+</div></main>

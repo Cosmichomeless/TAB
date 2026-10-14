@@ -1,6 +1,13 @@
 # GitHub Pages (Settings → Pages → Deploy from a branch → main, /docs) publishes the privacy policy and the
 # support page at https://cosmichomeless.github.io/TAB/privacy/ and /support/. Both URLs are used by the app
-# (Settings → About) and by App Store Connect.
+# (Settings → About) and by App Store Connect, so do not change their permalinks.
 title: TAB
-description: Private group expenses on your iPhone.
-theme: jekyll-theme-minimal
+description: Private group expenses on your iPhone. No account, no server, no network.
+url: https://cosmichomeless.github.io
+baseurl: /TAB
+# Only the site pages are published; the repository documentation stays on GitHub.
+exclude:
+  - architecture
+  - product
+  - release
+  - screenshots
