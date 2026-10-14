@@ -1,4 +1,4 @@
-# Physical iPhone validation (issue #39)
+# Physical iPhone validation (issue #39, closed)
 
 TAB has only been exercised on simulators. Before the TestFlight build goes to testers, run this list on a real iPhone with a build of the `TAB` scheme (Release configuration, so what you test is what ships) and write the results below. Anything that fails blocks the release.
 
@@ -45,3 +45,4 @@ TAB has only been exercised on simulators. Before the TestFlight build goes to t
 Notes and defects found:
 
 - None reported. The owner confirmed the app works on a real iPhone, but did not record which checklist items were covered (week of use, 500+ expenses, force-quit recovery, Dynamic Type, VoiceOver, dark mode, other languages, no network traffic). Tick them off above as they are confirmed.
+- Issues #39 and #56–#60 were closed by the owner on 2026-10-14 without per-item results. The boxes above stay unticked because nothing is recorded for them.

@@ -25,22 +25,21 @@ The earlier `v1.0.0` tag is the portfolio source tag and was never published; it
 
 ## Before submission
 
-These are release gates that need a person or a device, not code:
+These are release gates that need a person, a device or an Apple account, not code. They are tracked in issue #62.
 
 | Gate | Where | Status |
 | --- | --- | --- |
-| A week of real use on a physical iPhone, 500+ expenses, force-quit and recovery, Dynamic Type, VoiceOver, dark mode | [device-validation.md](device-validation.md), issue #39 | **Partly done**: the owner reports it works on a real iPhone; the checklist items are not individually recorded |
+| Physical iPhone: a week of real use, 500+ expenses, force-quit and recovery, Dynamic Type, VoiceOver, dark mode, other languages, no network traffic | [device-validation.md](device-validation.md) | **Reported OK** by the owner; the per-item results were not recorded |
+| Pages enabled so the privacy and support URLs resolve | repository settings → Pages → `main` / `docs` | **Done** for `/privacy/` and `/support/`; the home page (`/`) is not yet confirmed |
+| Parser check on a device set to Spanish (`1.234,50` and `1.234` accepted, `1,234` rejected) | issue #62 | **Open** |
 | Screenshots regenerated for the current UI and localised | [app-store/README.md](app-store/README.md) | **Open** |
-| Pages enabled so the privacy and support URLs resolve | repository settings → Pages → `main` / `docs` | **Open** |
-| TestFlight beta (20+ testers, 7 days without crashes) and App Review submission | [app-store/README.md](app-store/README.md), issue #49 | **Open** |
-| App record, categories, age rating, App Privacy, review notes, build upload and submission (web or Xcode; no MCP can do these) | [app-store/mcp-runbook.md](app-store/mcp-runbook.md) | **Open** |
-
-Record the outcome of the first row in [device-validation.md](device-validation.md) and link it here before the tag is cut.
+| App record, categories, age rating, App Privacy, EU trader declaration, review notes, build upload and submission (web or Xcode; no MCP can do these) | [app-store/mcp-runbook.md](app-store/mcp-runbook.md) | **Open** |
+| TestFlight beta (20+ testers, 7 days without crashes) and App Review | [app-store/README.md](app-store/README.md) | **Open** |
 
 ## Verified
 
 - `scripts/check_localizations.py`: every one of the 161 catalog entries is translated into the five languages, uses the same placeholders as the English text, and matches a string literal in the app sources. `scripts/check_app_store_metadata.py` checks the listing text against App Store Connect's field limits. Both run in CI on every push.
-- `swift test` for `TABCore` and `TABSync`, and a `TAB` simulator build, run in CI ([ci.yml](../../.github/workflows/ci.yml)). This workflow was added in the same change as this file and had not run when it was written; check its first result before relying on it.
+- `swift test` for `TABCore` and `TABSync`, and builds of the `TAB` and `TAB-Sync` schemes, run in CI ([ci.yml](../../.github/workflows/ci.yml)) on every push and pull request. They were green on the changes that introduced the localisation, the Pages site and the thousands-separator parser (PRs #52, #53 and #61).
 - The `TAB` target does not compile `App/Sync/` and links only `TABCore`; `Sources/TABCore` and `App/` contain no `URLSession` use. `App/PrivacyInfo.xcprivacy` declares the `UserDefaults` required-reason API (`CA92.1`) and nothing else, and the code uses no other required-reason API.
 
 ## Not verified
@@ -48,4 +47,4 @@ Record the outcome of the first row in [device-validation.md](device-validation.
 - The translations were written without a native-speaker review. Check truncation and Dynamic Type in German and French in particular.
 - The UI walkthrough (`UITests/WalkthroughUITests.swift`) drives the English UI only.
 - Physical iPhone: the owner reports the app works, but the individual checks in [device-validation.md](device-validation.md) (a week of use, 500+ expenses, force-quit recovery, accessibility, other languages) are not recorded.
-- No network capture was taken to confirm that the app sends no traffic. The privacy claim rests on the code and the build graph above.
+- No network capture is recorded to confirm that the app sends no traffic. The privacy claim rests on the code and the build graph above. Issues #39 and #56–#60 (device, screenshots, translation review, Dynamic Type, VoiceOver, network) were closed by the owner without recording the individual results.
