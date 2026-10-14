@@ -16,6 +16,13 @@ struct ImportGroupView: View {
     private var canUpdate: Bool { existing.map { $0.currency == currency } ?? true }
     private var userIsInFile: Bool { snapshot.participants.contains { $0.id == model.currentUser?.id } }
 
+    /// "3 people · 1 expense": each count agrees in number on its own, so the sentence works in every language.
+    private var countsLine: String {
+        let people = String(localized: "\(snapshot.participants.count) people")
+        let expenses = String(localized: "\(snapshot.expenses.count) expenses")
+        return "\(people) · \(expenses)"
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -51,7 +58,7 @@ struct ImportGroupView: View {
         return CardSection("Group") {
             VStack(alignment: .leading, spacing: 8) {
                 Text(snapshot.group.name).font(.title2.weight(.semibold))
-                Text("\(snapshot.participants.count) people · \(snapshot.expenses.count) expenses")
+                Text(countsLine)
                     .foregroundStyle(.secondary)
                 Text("Total \(currency.format(minorUnits: total))").foregroundStyle(.secondary)
                 Text(snapshot.participants.map(\.name).formatted(.list(type: .and)))

@@ -20,8 +20,7 @@ The earlier `v1.0.0` tag is the portfolio source tag and was never published; it
 
 - A shared group is a copy at that moment; later changes are not merged automatically. Importing the same group again offers to replace the expenses in the existing one.
 - One currency per group; there is no conversion.
-- "N people · M expenses" style summaries are not pluralised in every language (they read "1 expenses").
-- Amount fields accept `12.5` or `12,50`, but not thousands separators.
+- Amount fields accept `12.5`, `12,50`, `1.234,50`, `1,234.50` and spaces or apostrophes as thousands separators. A lone `.` or `,` before exactly three digits (`1.234`) counts as thousands only when it is the device language's grouping separator; otherwise it is rejected rather than guessed, so `1.234` on an English device is an error, not 1 234.
 - iPhone only, portrait only.
 
 ## Before submission

@@ -91,7 +91,7 @@ struct EqualSplitTests {
         #expect(Currency.eur.parse(minorUnits: " 7 ") == 700)
         #expect(Currency.eur.parse(minorUnits: "0.05") == 5)
         #expect(Currency.jpy.parse(minorUnits: "500") == 500)
-        #expect(Currency.eur.parse(minorUnits: "1.234") == nil)
+        #expect(Currency.eur.parse(minorUnits: "1.234", locale: Locale(identifier: "en_US")) == nil)
         #expect(Currency.jpy.parse(minorUnits: "5.5") == nil)
         #expect(Currency.eur.parse(minorUnits: "") == nil)
         #expect(Currency.eur.parse(minorUnits: "-3") == nil)
