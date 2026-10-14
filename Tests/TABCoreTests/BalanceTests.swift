@@ -140,4 +140,86 @@ struct BalanceTests {
         #expect([-500, -501].contains(anaNet))
         #expect(net(balances, david.id) == -anaNet)
     }
+
+    // MARK: Fewest payments
+
+    private func balances(_ values: [Int64]) -> [Balance] {
+        values.enumerated().map { Balance(userID: UUID(uuid: (UInt8($0.offset + 1), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)), netMinor: $0.element) }
+    }
+
+    private func settle(_ balances: [Balance]) -> [Settlement] {
+        let result = BalanceCalculator.settlements(for: balances)
+        var left = Dictionary(uniqueKeysWithValues: balances.map { ($0.userID, $0.netMinor) })
+        for payment in result {
+            #expect(payment.amountMinor > 0 && payment.from != payment.to)
+            left[payment.from, default: 0] += payment.amountMinor
+            left[payment.to, default: 0] -= payment.amountMinor
+        }
+        #expect(left.values.allSatisfy { $0 == 0 })
+        return result
+    }
+
+    @Test func separateDebtsAreNotChainedTogether() {
+        // 10 and 20 are owed; 10 and 20 are owed by two other people: two payments, not three.
+        #expect(settle(balances([1000, -1000, 2000, -2000])).count == 2)
+    }
+
+    @Test func aGroupThatOnlyAddsUpAsAWholeNeedsOnePaymentLess() {
+        #expect(settle(balances([1000, 500, -700, -800])).count == 3)
+        #expect(settle(balances([3000, -1000, -1000, -1000])).count == 3)
+    }
+
+    @Test func settlesEachZeroSumGroupOnItsOwn() {
+        // {7, -7}, {5, -2, -3} and {4, -4} each add up to zero on their own: 1 + 2 + 1 = 4 payments.
+        let result = settle(balances([700, -700, 500, -200, -300, 400, -400]))
+        #expect(result.count == 4)
+    }
+
+    @Test func zeroBalancesNeedNoPaymentAndAreIgnored() {
+        #expect(settle(balances([0, 0, 0])).isEmpty)
+        #expect(settle(balances([0, 500, -500, 0])).count == 1)
+        #expect(BalanceCalculator.settlements(for: []).isEmpty)
+    }
+
+    @Test func theResultDoesNotDependOnTheOrderOfTheInput() {
+        let input = balances([700, -700, 500, -200, -300, 400, -400])
+        #expect(BalanceCalculator.settlements(for: input) == BalanceCalculator.settlements(for: input.reversed()))
+        #expect(BalanceCalculator.settlements(for: input) == BalanceCalculator.settlements(for: input.shuffled()))
+    }
+
+    @Test func pairsThatCancelOutNeedOnePaymentEach() {
+        // 9 pairs that cancel out exactly need 9 payments, not up to 17.
+        var values: [Int64] = []
+        for pair in 1...9 { values += [Int64(pair) * 100, Int64(pair) * -100] }
+        #expect(settle(balances(values)).count == 9)
+    }
+
+    @Test func largeGroupsFallBackToAValidSettlementQuickly() {
+        var rng = SystemRandomNumberGenerator()
+        var values = (0..<39).map { _ in Int64.random(in: -50_000...50_000, using: &rng) }
+        values.append(-values.reduce(0, +))
+        let started = Date()
+        let result = settle(balances(values))
+        #expect(result.count <= 39)
+        #expect(Date().timeIntervalSince(started) < 2)
+    }
+
+    @Test func eighteenMembersAreSolvedExactlyInTime() {
+        var values: [Int64] = []
+        for pair in 1...9 { values += [Int64(pair) * 37, Int64(pair) * -37] }
+        let started = Date()
+        #expect(settle(balances(values)).count == 9)
+        #expect(Date().timeIntervalSince(started) < 2)
+    }
+
+    @Test func aPaymentRecordedAsAnExpenseSettlesTheDebt() {
+        // B owes A 10.00. B pays A back: B "paid" 10.00 that only A uses.
+        let ledger = [
+            entry(paidBy: a, [(a, 1000), (b, 1000)]),
+            entry(paidBy: b, [(a, 1000)]),
+        ]
+        let balances = BalanceCalculator.balances(for: ledger, members: [a, b])
+        #expect(balances.allSatisfy { $0.netMinor == 0 })
+        #expect(BalanceCalculator.settlements(for: balances).isEmpty)
+    }
 }

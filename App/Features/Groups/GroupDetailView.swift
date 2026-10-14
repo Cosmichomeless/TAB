@@ -22,6 +22,7 @@ struct GroupDetailView: View {
     @State private var showingAddExpense = false
     @State private var editing: Expense?
     @State private var pendingDelete: Expense?
+    @State private var settling: Settlement?
     @State private var actionError: String?
 
     var body: some View {
@@ -87,18 +88,24 @@ struct GroupDetailView: View {
             if !settlements.isEmpty {
                 Section {
                     ForEach(settlements, id: \.self) { settlement in
-                        HStack(spacing: 10) {
-                            Avatar(name: name(of: settlement.from), id: settlement.from, size: 30)
-                            Image(systemName: "arrow.right").font(.caption.weight(.bold)).foregroundStyle(Theme.amber)
-                            Avatar(name: name(of: settlement.to), id: settlement.to, size: 30)
-                            Text("\(name(of: settlement.from)) pays \(name(of: settlement.to))")
-                                .font(.subheadline)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.8)
-                            Spacer()
-                            Text(group.currency.format(minorUnits: settlement.amountMinor))
-                                .monospacedDigit().fontWeight(.semibold)
+                        Button { settling = settlement } label: {
+                            HStack(spacing: 10) {
+                                Avatar(name: name(of: settlement.from), id: settlement.from, size: 30)
+                                Image(systemName: "arrow.right").font(.caption.weight(.bold)).foregroundStyle(Theme.amber)
+                                Avatar(name: name(of: settlement.to), id: settlement.to, size: 30)
+                                Text("\(name(of: settlement.from)) pays \(name(of: settlement.to))")
+                                    .font(.subheadline)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.8)
+                                Spacer()
+                                Text(group.currency.format(minorUnits: settlement.amountMinor))
+                                    .monospacedDigit().fontWeight(.semibold)
+                                Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
+                            }
+                            .contentShape(Rectangle())
                         }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("settlement-\(name(of: settlement.from))-\(name(of: settlement.to))")
                         .listRowBackground(Theme.card)
                     }
                 } header: {
@@ -143,6 +150,12 @@ struct GroupDetailView: View {
         }
         .sheet(isPresented: $showingShare) {
             ShareGroupView(group: group)
+        }
+        .sheet(item: $settling) { settlement in
+            SettleUpView(
+                group: group, settlement: settlement,
+                from: name(of: settlement.from), to: name(of: settlement.to)
+            )
         }
         #if SYNC
         .sheet(isPresented: $showingConflicts) {
@@ -223,6 +236,10 @@ struct GroupDetailView: View {
     private func signed(_ minor: Int64) -> String {
         (minor > 0 ? "+" : "") + group.currency.format(minorUnits: minor)
     }
+}
+
+extension Settlement: @retroactive Identifiable {
+    public var id: Settlement { self }
 }
 
 private struct SectionTitle: View {

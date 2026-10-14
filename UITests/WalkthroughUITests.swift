@@ -160,6 +160,36 @@ final class WalkthroughUITests: XCTestCase {
         XCTAssertEqual(app.textFields["Marta"].value as? String, "10.00")
     }
 
+    func testSettlingASuggestedPaymentRecordsItAndUpdatesTheBalances() {
+        app.terminate()
+        app.launchArguments = ["-resetData", "-demoData", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Lisbon trip"].waitForExistence(timeout: 15))
+        app.staticTexts["Lisbon trip"].tap()
+
+        let suggestions = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'settlement-'"))
+        // The list is lazy: the suggestions only exist once they have been scrolled into view.
+        for _ in 0..<6 where !suggestions.firstMatch.exists { app.swipeUp() }
+        XCTAssertTrue(suggestions.firstMatch.waitForExistence(timeout: 5))
+        suggestions.firstMatch.tap()
+
+        XCTAssertTrue(app.staticTexts["settleAmount"].waitForExistence(timeout: 5))
+        app.buttons["editPaymentDetails"].tap()
+        let paypal = app.textFields["payPalMe"]
+        XCTAssertTrue(paypal.waitForExistence(timeout: 5))
+        paypal.tap()
+        paypal.typeText("marta")
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(app.buttons["openPayPal"].waitForExistence(timeout: 5))
+        snap("12-settle-up")
+
+        app.buttons["markAsPaid"].tap()
+        XCTAssertTrue(app.buttons["Add expense"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["markAsPaid"].exists)
+        for _ in 0..<6 where !app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Payment to'")).firstMatch.exists { app.swipeDown() }
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Payment to'")).firstMatch.exists)
+    }
+
     func testSharedGroupLinkCanBeImportedAsACopy() {
         app.terminate()
         app.launchArguments = ["-resetData", "-demoData", "-exposeShareLink", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]

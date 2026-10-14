@@ -80,6 +80,7 @@ final class AppModel {
     }
 
     static let currentUserKey = "currentUserID"
+    static let paymentHandlesKey = "paymentHandles"
 
     func start() async {
         guard repository == nil else { return }
@@ -169,6 +170,35 @@ final class AppModel {
         try await archive.importGroup(snapshot, mode: mode, me: user.id, asParticipant: asParticipant)
     }
 
+    /// Records that `from` paid `to` outside the app. It is an expense that `from` paid and only `to` uses, so the
+    /// balances, a shared file and a backup all reflect it without a second kind of record.
+    func recordPayment(groupID: UUID, from: UUID, to: UUID, amountMinor: Int64, toName: String) async throws {
+        guard let expenseRepository else { return }
+        _ = try await expenseRepository.createExpense(
+            groupID: groupID, paidBy: from, title: String(localized: "Payment to \(toName)"), amountMinor: amountMinor,
+            shares: [SplitShare(userID: to, amountMinor: amountMinor)]
+        )
+        requestSync()
+    }
+
+    /// How each participant can be paid. Kept in this iPhone's defaults only: it is not part of a group, a share
+    /// or a backup, and "Delete all data" removes it.
+    func paymentHandles(for userID: UUID) -> PaymentHandles {
+        storedPaymentHandles()[userID.uuidString] ?? PaymentHandles()
+    }
+
+    func setPaymentHandles(_ handles: PaymentHandles, for userID: UUID) {
+        var all = storedPaymentHandles()
+        all[userID.uuidString] = handles.isEmpty ? nil : handles
+        let data = all.isEmpty ? nil : try? JSONEncoder().encode(all)
+        UserDefaults.standard.set(data, forKey: Self.paymentHandlesKey)
+    }
+
+    private func storedPaymentHandles() -> [String: PaymentHandles] {
+        UserDefaults.standard.data(forKey: Self.paymentHandlesKey)
+            .flatMap { try? JSONDecoder().decode([String: PaymentHandles].self, from: $0) } ?? [:]
+    }
+
     /// Writes every group to a `.tabbackup` file in a temporary folder and returns it, ready to share.
     func makeBackupFile() async throws -> URL {
         guard let archive, case .ready(let user) = state else { throw SnapshotError.unreadable }
@@ -196,6 +226,7 @@ final class AppModel {
         guard let archive else { return }
         try await archive.deleteAllData()
         UserDefaults.standard.removeObject(forKey: Self.currentUserKey)
+        UserDefaults.standard.removeObject(forKey: Self.paymentHandlesKey)
         for name in ["backup", "share"] {
             try? FileManager.default.removeItem(at: Self.temporaryDirectory(name))
         }

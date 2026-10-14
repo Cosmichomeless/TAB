@@ -25,6 +25,10 @@ Settings has "Delete all data": after two confirmations it removes every group, 
 
 Settings can export every group to a `.tabbackup` file and restore from one, for example to move your groups to another iPhone. The file is created on your device and you decide where to keep it or whom to send it to. The app never uploads it. Restoring replaces what is on the iPhone with the contents of the backup.
 
+## Payment details
+
+When you settle up, you can type how someone prefers to be paid (a Bizum phone number, a PayPal.me name, a Revolut.me tag or an IBAN). Those details are stored only on this iPhone, are never part of a group, a shared file or a backup, and are removed by "Delete all data". The app opens PayPal or Revolut, or copies the details, and never makes or processes a payment.
+
 ## Children
 
 The app does not collect personal information from anyone, including children.
@@ -65,6 +69,10 @@ En Ajustes hay «Borrar todos los datos»: tras dos confirmaciones elimina todos
 ## Copia de seguridad y restauración
 
 En Ajustes puedes exportar todos los grupos a un archivo `.tabbackup` y restaurarlos desde uno, por ejemplo para pasar tus grupos a otro iPhone. El archivo se crea en tu dispositivo y tú decides dónde guardarlo o a quién enviarlo. La app nunca lo sube. Restaurar sustituye lo que hay en el iPhone por el contenido de la copia.
+
+## Datos de pago
+
+Al saldar cuentas puedes escribir cómo prefiere cobrar alguien (un teléfono de Bizum, un nombre de PayPal.me, una etiqueta de Revolut.me o un IBAN). Esos datos se guardan solo en este iPhone, no forman parte de ningún grupo, archivo compartido ni copia de seguridad, y «Borrar todos los datos» los elimina. La app abre PayPal o Revolut, o copia los datos, y nunca realiza ni procesa un pago.
 
 ## Menores
 
