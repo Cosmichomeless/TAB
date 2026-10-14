@@ -409,6 +409,36 @@ struct SharingTests {
         let again = try await f.groups.createUser(name: "New", email: nil)
         #expect(try await f.groups.user(id: again.id)?.name == "New")
     }
+
+    @Test func summaryListsTheSameSuggestedPaymentsAsTheGroupScreen() async throws {
+        let f = try await makeFixture()
+        let snapshot = try await f.archive.snapshot(of: f.group.id)
+        let text = SettlementText.text(for: snapshot)
+        let eur = Currency.eur
+
+        let lines = text.split(separator: "\n").map(String.init)
+        #expect(lines.first == "Lisboa 🇵🇹 – who owes whom")
+        #expect(lines.contains("Léo owes David \(eur.format(minorUnits: 3000))"))
+        #expect(lines.contains("Ana owes David \(eur.format(minorUnits: 2499))"))
+        #expect(lines.count == 3)
+    }
+
+    @Test func summaryOfASettledGroupSaysSo() async throws {
+        let (archive, groups, me, _) = try await freshDatabase(profile: "Marta")
+        let group = try await groups.createGroup(name: "Casa", currency: .eur, createdBy: me.id)
+        let snapshot = try await archive.snapshot(of: group.id)
+        #expect(SettlementText.text(for: snapshot) == "Casa – who owes whom\nEveryone is settled up.")
+    }
+
+    @Test func summaryUsesTheGivenPhrases() async throws {
+        let f = try await makeFixture()
+        let snapshot = try await f.archive.snapshot(of: f.group.id)
+        let phrases = SettlementText.Phrases(
+            title: { "Resumen de \($0)" }, payment: { "\($0) debe a \($1): \($2)" }, settled: "Todo saldado."
+        )
+        let text = SettlementText.text(for: snapshot, phrases: phrases)
+        #expect(text.hasPrefix("Resumen de Lisboa 🇵🇹\nLéo debe a David: "))
+    }
 }
 
 @Suite("Opening TAB files")

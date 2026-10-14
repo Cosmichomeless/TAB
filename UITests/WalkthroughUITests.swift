@@ -172,6 +172,10 @@ final class WalkthroughUITests: XCTestCase {
         XCTAssertTrue(app.images["QR code for the group Lisbon trip"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons["Share as file"].exists)
         XCTAssertTrue(app.buttons["Share link"].exists)
+        XCTAssertTrue(app.buttons["Share summary as text"].exists)
+        let summary = app.staticTexts["summaryText"].label
+        XCTAssertTrue(summary.hasPrefix("Lisbon trip – who owes whom"), "The summary is \(summary)")
+        XCTAssertTrue(summary.contains(" owes "), "The summary is \(summary)")
         snap("12-share-group")
         app.buttons["Copy link"].tap()
         let copied = app.buttons["Link copied"]

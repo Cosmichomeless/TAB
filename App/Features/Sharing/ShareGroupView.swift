@@ -20,6 +20,7 @@ struct ShareGroupView: View {
         let link: URL
         let file: URL
         let qr: UIImage?
+        let summary: String
     }
 
     var body: some View {
@@ -29,6 +30,17 @@ struct ShareGroupView: View {
                     if let shared {
                         CardSection("QR code") {
                             qrCode(shared.qr).padding(16)
+                        }
+                        CardSection("Who owes whom") {
+                            ShareLink(item: shared.summary, subject: Text(group.name)) {
+                                row("Share summary as text", systemImage: "text.bubble")
+                            }
+                            .accessibilityIdentifier("shareSummary")
+                            Text(shared.summary)
+                                .font(.footnote).foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, 16).padding(.bottom, 14)
+                                .accessibilityIdentifier("summaryText")
                         }
                         CardSection("Send") {
                             ShareLink(item: shared.file, subject: Text(group.name)) {
@@ -111,7 +123,10 @@ struct ShareGroupView: View {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             let file = directory.appendingPathComponent(Self.fileName(for: group.name)).appendingPathExtension("tabgroup")
             try snapshot.fileData().write(to: file, options: .atomic)
-            shared = Shared(link: link, file: file, qr: QRCode.image(for: link.absoluteString))
+            shared = Shared(
+                link: link, file: file, qr: QRCode.image(for: link.absoluteString),
+                summary: SettlementText.text(for: snapshot, phrases: .localized)
+            )
         } catch {
             failure = error.localizedDescription
         }
@@ -122,5 +137,16 @@ struct ShareGroupView: View {
         let cleaned = groupName.components(separatedBy: forbidden).joined(separator: "-")
             .trimmingCharacters(in: .whitespaces)
         return cleaned.isEmpty ? "TAB group" : String(cleaned.prefix(60))
+    }
+}
+
+extension SettlementText.Phrases {
+    /// The summary in the language of the app.
+    static var localized: Self {
+        Self(
+            title: { String(localized: "\($0) – who owes whom") },
+            payment: { String(localized: "\($0) owes \($1) \($2)") },
+            settled: String(localized: "Everyone is settled up.")
+        )
     }
 }
