@@ -8,6 +8,7 @@ struct GroupListView: View {
     @Environment(AppModel.self) private var model
     @State private var showingNewGroup = false
     @State private var showingImporter = false
+    @State private var showingSettings = false
     #if SYNC
     @State private var showingAccount = false
     #endif
@@ -38,6 +39,7 @@ struct GroupListView: View {
         .brandScreen()
         .navigationTitle("Groups")
         .navigationDestination(for: ExpenseGroup.self) { GroupDetailView(group: $0) }
+        .navigationDestination(isPresented: $showingSettings) { SettingsView() }
         .toolbar {
             #if SYNC
             ToolbarItem(placement: .topBarLeading) {
@@ -47,6 +49,7 @@ struct GroupListView: View {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Menu("More", systemImage: "ellipsis.circle") {
                     Button("Import group from file", systemImage: "square.and.arrow.down") { showingImporter = true }
+                    Button("Settings", systemImage: "gearshape") { showingSettings = true }
                 }
                 Button("New group", systemImage: "plus") { showingNewGroup = true }
             }

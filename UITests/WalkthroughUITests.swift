@@ -64,7 +64,7 @@ final class WalkthroughUITests: XCTestCase {
         snap("06-expense-and-balances")
 
         // 7. Everything is local: no account, no sync status.
-        app.navigationBars.buttons.element(boundBy: 0).tap()
+        app.buttons["BackButton"].tap()
         XCTAssertTrue(app.navigationBars["Groups"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["Account"].exists)
         XCTAssertFalse(app.staticTexts["Local only"].exists)
@@ -131,6 +131,7 @@ final class WalkthroughUITests: XCTestCase {
         let amount = app.textFields["Amount (EUR)"]
         amount.tap()
         amount.typeText("30")
+        app.buttons["Done"].tap()
 
         // 2 parts for David and 1 for Marta: 20.00 and 10.00.
         app.buttons["Shares"].tap()
@@ -206,6 +207,87 @@ final class WalkthroughUITests: XCTestCase {
         app.alerts.buttons["OK"].tap()
         XCTAssertTrue(app.staticTexts["Lisbon trip"].exists)
         XCTAssertFalse(app.navigationBars["Import group"].exists)
+    }
+
+    func testDeleteAllDataAsksTwiceAndStartsOver() {
+        app.terminate()
+        app.launchArguments = ["-resetData", "-demoData", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Lisbon trip"].waitForExistence(timeout: 15))
+        openSettings()
+        XCTAssertTrue(app.staticTexts["dataExplanation"].exists)
+        XCTAssertTrue(app.buttons["exportBackup"].waitForExistence(timeout: 10))
+        snap("14-settings")
+
+        // Cancelling at either step keeps everything.
+        app.buttons["Delete all data"].tap()
+        XCTAssertTrue(app.buttons["Continue"].waitForExistence(timeout: 5))
+        dismissDialog()
+        XCTAssertTrue(app.buttons["Delete all data"].waitForExistence(timeout: 5))
+        app.buttons["Delete all data"].tap()
+        app.buttons["Continue"].tap()
+        XCTAssertTrue(app.alerts["Delete everything for good?"].waitForExistence(timeout: 5))
+        app.alerts.buttons["Cancel"].tap()
+        app.buttons["BackButton"].tap()
+        XCTAssertTrue(app.staticTexts["Lisbon trip"].waitForExistence(timeout: 5))
+
+        // Confirming twice erases the data and shows the first-launch screen again.
+        openSettings()
+        app.buttons["Delete all data"].tap()
+        app.buttons["Continue"].tap()
+        XCTAssertTrue(app.alerts["Delete everything for good?"].waitForExistence(timeout: 5))
+        app.alerts.buttons["Delete all data"].tap()
+        XCTAssertTrue(app.staticTexts["What should we call you?"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts["Lisbon trip"].exists)
+    }
+
+    func testBackupFileCanBeRestoredAndReplacesTheData() throws {
+        let me = "11111111-1111-1111-1111-111111111111", friend = "22222222-2222-2222-2222-222222222222"
+        let backup = """
+        {"format":"tab.backup","schemaVersion":1,"exportedAt":1760000000000,
+         "me":{"id":"\(me)","name":"Marta","createdAt":1},
+         "groups":[{"format":"tab.group","schemaVersion":1,"exportedAt":1760000000000,
+           "group":{"id":"33333333-3333-3333-3333-333333333333","name":"Valencia","currency":"EUR","createdBy":"\(me)","createdAt":1},
+           "participants":[{"id":"\(me)","name":"Marta","createdAt":1},{"id":"\(friend)","name":"Pablo","createdAt":1}],
+           "expenses":[{"id":"44444444-4444-4444-4444-444444444444","paidBy":"\(me)","title":"Paella","amountMinor":3000,
+             "createdAt":1,"updatedAt":1,
+             "splits":[{"userID":"\(me)","amountMinor":1500},{"userID":"\(friend)","amountMinor":1500}]}]}]}
+        """
+        let file = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("UITest.tabbackup")
+        try backup.write(to: file, atomically: true, encoding: .utf8)
+
+        app.terminate()
+        app.launchArguments = ["-resetData", "-demoData", "-AppleLanguages", "(en)", "-AppleLocale", "en_US",
+                               "-incomingURL", file.absoluteString]
+        app.launch()
+        XCTAssertTrue(app.navigationBars["Restore backup"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.staticTexts["Marta"].exists)
+        snap("15-restore-backup")
+        app.buttons["Restore backup"].tap()
+        XCTAssertTrue(app.buttons["Replace with this backup"].waitForExistence(timeout: 5))
+        app.buttons["Replace with this backup"].tap()
+
+        XCTAssertTrue(app.staticTexts["Valencia"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts["Lisbon trip"].exists)
+    }
+
+    /// Closes a confirmation dialog without choosing: with its Cancel button, or by tapping outside it where
+    /// the system shows the dialog as a popover and leaves Cancel out.
+    private func dismissDialog() {
+        let cancel = app.buttons["Cancel"]
+        if cancel.waitForExistence(timeout: 1) { cancel.tap() }
+        else { app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.97)).tap() }
+    }
+
+    private func openSettings() {
+        // The menu occasionally ignores the first tap right after a screen change, so open it up to three times.
+        for _ in 0..<3 {
+            app.buttons["More"].tap()
+            if app.buttons["Settings"].waitForExistence(timeout: 3) { break }
+        }
+        XCTAssertTrue(app.buttons["Settings"].exists)
+        app.buttons["Settings"].tap()
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5))
     }
 
     private func snap(_ name: String) {

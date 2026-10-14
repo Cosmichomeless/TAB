@@ -169,6 +169,46 @@ final class AppModel {
         try await archive.importGroup(snapshot, mode: mode, me: user.id, asParticipant: asParticipant)
     }
 
+    /// Writes every group to a `.tabbackup` file in a temporary folder and returns it, ready to share.
+    func makeBackupFile() async throws -> URL {
+        guard let archive, case .ready(let user) = state else { throw SnapshotError.unreadable }
+        let backup = try await archive.backup(me: user.id)
+        let directory = Self.temporaryDirectory("backup")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let day = Date().formatted(.iso8601.year().month().day())
+        let file = directory.appendingPathComponent("TAB backup \(day)").appendingPathExtension("tabbackup")
+        try backup.fileData().write(to: file, options: .atomic)
+        return file
+    }
+
+    /// Replaces everything on this iPhone with the backup and continues as the profile it was made with.
+    func restore(_ backup: BackupFile) async throws {
+        guard let archive, let repository else { return }
+        let id = try await archive.restore(backup)
+        UserDefaults.standard.set(id.uuidString, forKey: Self.currentUserKey)
+        guard let user = try await repository.user(id: id) else { throw SnapshotError.unreadable }
+        state = .ready(user)
+        try await reloadGroups()
+    }
+
+    /// Removes the database, the profile and every temporary file TAB wrote, and goes back to the first launch.
+    func deleteAllData() async throws {
+        guard let archive else { return }
+        try await archive.deleteAllData()
+        UserDefaults.standard.removeObject(forKey: Self.currentUserKey)
+        for name in ["backup", "share"] {
+            try? FileManager.default.removeItem(at: Self.temporaryDirectory(name))
+        }
+        pendingImport = nil
+        groups = []
+        summaries = [:]
+        state = .needsProfile
+    }
+
+    static func temporaryDirectory(_ name: String) -> URL {
+        FileManager.default.temporaryDirectory.appendingPathComponent(name, isDirectory: true)
+    }
+
     func addParticipant(name: String, email: String?, to groupID: UUID) async throws {
         guard let repository else { return }
         _ = try await repository.addParticipant(name: name, email: email, to: groupID)

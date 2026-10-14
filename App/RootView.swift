@@ -20,7 +20,7 @@ struct RootView: View {
                 .sheet(item: $model.pendingImport) { pending in
                     switch pending.file {
                     case .group(let snapshot): ImportGroupView(snapshot: snapshot)
-                    case .backup: EmptyView()
+                    case .backup(let backup): RestoreBackupView(backup: backup)
                     }
                 }
                 .alert(

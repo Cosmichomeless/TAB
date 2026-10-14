@@ -1,6 +1,6 @@
 # Privacy Policy — TAB
 
-*Last updated: October 13, 2026.* · [Español más abajo](#política-de-privacidad)
+*Last updated: October 14, 2026.* · [Español más abajo](#política-de-privacidad)
 
 **Summary: TAB does not collect your data.** There are no accounts, no analytics, no advertising and no third-party SDKs. The app does not track you.
 
@@ -19,7 +19,11 @@ We (the developer) do not collect, receive or share any personal data. Nothing l
 
 ## Deleting your data
 
-Deleting a group or expense in the app removes its data. Uninstalling the app removes everything.
+Settings has "Delete all data": after two confirmations it removes every group, expense and your profile from the app and takes you back to the first launch screen. Deleting a group or expense removes just that data, and uninstalling the app removes everything.
+
+## Backup and restore
+
+Settings can export every group to a `.tabbackup` file and restore from one, for example to move your groups to another iPhone. The file is created on your device and you decide where to keep it or whom to send it to. The app never uploads it. Restoring replaces what is on the iPhone with the contents of the backup.
 
 ## Children
 
@@ -37,7 +41,7 @@ Questions about privacy: open an issue at <https://github.com/Cosmichomeless/TAB
 
 # Política de privacidad
 
-*Última actualización: 13 de octubre de 2026.*
+*Última actualización: 14 de octubre de 2026.*
 
 **Resumen: TAB no recoge tus datos.** No hay cuentas, ni analíticas, ni publicidad, ni SDK de terceros. La app no te rastrea.
 
@@ -56,7 +60,11 @@ Nosotros (el desarrollador) no recogemos, recibimos ni compartimos ningún dato 
 
 ## Borrado de datos
 
-Borrar un grupo o gasto en la app elimina sus datos. Desinstalar la app lo elimina todo.
+En Ajustes hay «Borrar todos los datos»: tras dos confirmaciones elimina todos los grupos, gastos y tu perfil de la app y vuelve a la pantalla del primer inicio. Borrar un grupo o un gasto elimina solo esos datos, y desinstalar la app lo elimina todo.
+
+## Copia de seguridad y restauración
+
+En Ajustes puedes exportar todos los grupos a un archivo `.tabbackup` y restaurarlos desde uno, por ejemplo para pasar tus grupos a otro iPhone. El archivo se crea en tu dispositivo y tú decides dónde guardarlo o a quién enviarlo. La app nunca lo sube. Restaurar sustituye lo que hay en el iPhone por el contenido de la copia.
 
 ## Menores
 
