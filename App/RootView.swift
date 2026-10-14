@@ -5,6 +5,7 @@ struct RootView: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
+        @Bindable var model = model
         switch model.state {
         case .loading:
             ZStack {
@@ -16,6 +17,20 @@ struct RootView: View {
         case .ready:
             NavigationStack { GroupListView() }
                 .tint(Theme.accent)
+                .sheet(item: $model.pendingImport) { pending in
+                    switch pending.file {
+                    case .group(let snapshot): ImportGroupView(snapshot: snapshot)
+                    case .backup: EmptyView()
+                    }
+                }
+                .alert(
+                    "Could not open the file",
+                    isPresented: Binding(get: { model.incomingError != nil }, set: { if !$0 { model.incomingError = nil } })
+                ) {
+                    Button("OK", role: .cancel) {}
+                } message: {
+                    Text(model.incomingError ?? "")
+                }
         case .failed(let message):
             ContentUnavailableView("Could not open your data", systemImage: "exclamationmark.triangle", description: Text(message))
         }

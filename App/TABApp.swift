@@ -12,6 +12,7 @@ struct TABApp: App {
             RootView()
                 .environment(model)
                 .task { await model.start() }
+                .onOpenURL { model.handleIncoming($0) }
                 #if SYNC
                 .onChange(of: scenePhase) { _, phase in
                     if phase == .active { model.requestSync() }

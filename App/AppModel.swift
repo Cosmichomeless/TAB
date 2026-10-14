@@ -47,6 +47,11 @@ final class AppModel {
     var syncRevision = 0
     #endif
 
+    /// A shared group or backup that was opened and is waiting for the user to confirm the import.
+    var pendingImport: PendingImport?
+    /// Why the last file or link could not be opened, shown once.
+    var incomingError: String?
+
     /// What the group list shows for each group without opening it.
     private(set) var summaries: [UUID: GroupSummary] = [:]
 
@@ -61,6 +66,7 @@ final class AppModel {
     var isBackendConfigured: Bool { auth != nil }
     var syncOverview: SyncOverview { SyncOverview(phase: syncPhase, summary: syncSummary) }
     #endif
+    var archive: GroupArchive? { database.map { GroupArchive(database: $0) } }
     var currentUser: User? {
         if case .ready(let user) = state { user } else { nil }
     }
@@ -116,6 +122,14 @@ final class AppModel {
                 state = .needsProfile
             }
             try await reloadGroups()
+            #if DEBUG
+            // UI tests open a link as if it came from the camera or Messages: `-incomingURL tab://group?d=...`.
+            if let index = CommandLine.arguments.firstIndex(of: "-incomingURL"),
+               CommandLine.arguments.indices.contains(index + 1),
+               let url = URL(string: CommandLine.arguments[index + 1]) {
+                handleIncoming(url)
+            }
+            #endif
 
             for await _ in repository.changes() {
                 try? await reloadGroups()
@@ -148,6 +162,11 @@ final class AppModel {
         guard let repository, case .ready(let user) = state else { return }
         _ = try await repository.createGroup(name: name, currency: currency, createdBy: user.id)
         requestSync()
+    }
+
+    func importGroup(_ snapshot: GroupSnapshot, mode: GroupArchive.ImportMode, asParticipant: UUID?) async throws {
+        guard let archive, case .ready(let user) = state else { return }
+        try await archive.importGroup(snapshot, mode: mode, me: user.id, asParticipant: asParticipant)
     }
 
     func addParticipant(name: String, email: String?, to groupID: UUID) async throws {

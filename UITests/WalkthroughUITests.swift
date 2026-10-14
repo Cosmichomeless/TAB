@@ -159,6 +159,51 @@ final class WalkthroughUITests: XCTestCase {
         XCTAssertEqual(app.textFields["Marta"].value as? String, "10.00")
     }
 
+    func testSharedGroupLinkCanBeImportedAsACopy() {
+        app.terminate()
+        app.launchArguments = ["-resetData", "-demoData", "-exposeShareLink", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Lisbon trip"].waitForExistence(timeout: 15))
+        app.staticTexts["Lisbon trip"].tap()
+        XCTAssertTrue(app.buttons["Share group"].waitForExistence(timeout: 10))
+        app.buttons["Share group"].tap()
+
+        XCTAssertTrue(app.navigationBars["Share group"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.images["QR code for the group Lisbon trip"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["Share as file"].exists)
+        XCTAssertTrue(app.buttons["Share link"].exists)
+        snap("12-share-group")
+        app.buttons["Copy link"].tap()
+        let copied = app.buttons["Link copied"]
+        XCTAssertTrue(copied.waitForExistence(timeout: 5))
+        let link = copied.value as? String ?? ""
+        XCTAssertTrue(link.hasPrefix("tab://group?d="), "The copied link is \(link)")
+        app.buttons["Done"].tap()
+
+        // Opening the link on a phone that already has the group offers to update it or to add a copy.
+        app.terminate()
+        app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US", "-incomingURL", link]
+        app.launch()
+        XCTAssertTrue(app.navigationBars["Import group"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.staticTexts["You already have this group"].exists)
+        app.buttons["Add a copy"].tap()
+        snap("13-import-group")
+        app.buttons["Import group"].tap()
+        let copies = app.staticTexts.matching(identifier: "Lisbon trip")
+        XCTAssertTrue(copies.element(boundBy: 1).waitForExistence(timeout: 10))
+    }
+
+    func testBrokenLinkShowsAnErrorAndChangesNothing() {
+        app.terminate()
+        app.launchArguments = ["-resetData", "-demoData", "-AppleLanguages", "(en)", "-AppleLocale", "en_US",
+                               "-incomingURL", "tab://group?d=not-a-real-group"]
+        app.launch()
+        XCTAssertTrue(app.alerts["Could not open the file"].waitForExistence(timeout: 15))
+        app.alerts.buttons["OK"].tap()
+        XCTAssertTrue(app.staticTexts["Lisbon trip"].exists)
+        XCTAssertFalse(app.navigationBars["Import group"].exists)
+    }
+
     private func snap(_ name: String) {
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = name

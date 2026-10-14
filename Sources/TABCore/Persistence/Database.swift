@@ -116,6 +116,11 @@ public actor Database {
         }
     }
 
+    /// Runs several reads as one unit: nothing else touches the database between them, and no change is broadcast.
+    public func read<T: Sendable>(_ body: @Sendable (isolated Database) throws -> T) throws -> T {
+        try body(self)
+    }
+
     // MARK: - Internals
 
     private func connection() throws -> OpaquePointer {

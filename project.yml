@@ -22,8 +22,35 @@ targets:
       - package: TABCore
     info:
       path: App/Info.plist
-      properties:
+      properties: &sharedInfo
         ITSAppUsesNonExemptEncryption: false
+        LSSupportsOpeningDocumentsInPlace: false
+        # `tab://group?d=...` links and QR codes, and the .tabgroup / .tabbackup files (see Sources/TABCore/Sharing).
+        CFBundleURLTypes:
+          - CFBundleURLName: com.cosmichomeless.tab.link
+            CFBundleURLSchemes: [tab]
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: TAB group
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Owner
+            LSItemContentTypes: [com.cosmichomeless.tab.group]
+          - CFBundleTypeName: TAB backup
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Owner
+            LSItemContentTypes: [com.cosmichomeless.tab.backup]
+        UTExportedTypeDeclarations:
+          - UTTypeIdentifier: com.cosmichomeless.tab.group
+            UTTypeDescription: TAB group
+            UTTypeConformsTo: [public.json]
+            UTTypeTagSpecification:
+              public.filename-extension: [tabgroup]
+              public.mime-type: [application/vnd.cosmichomeless.tab.group+json]
+          - UTTypeIdentifier: com.cosmichomeless.tab.backup
+            UTTypeDescription: TAB backup
+            UTTypeConformsTo: [public.json]
+            UTTypeTagSpecification:
+              public.filename-extension: [tabbackup]
+              public.mime-type: [application/vnd.cosmichomeless.tab.backup+json]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.cosmichomeless.TAB
@@ -48,7 +75,7 @@ targets:
     info:
       path: SyncApp/Info.plist
       properties:
-        ITSAppUsesNonExemptEncryption: false
+        <<: *sharedInfo
         SupabaseURL: $(SUPABASE_URL)
         SupabaseAnonKey: $(SUPABASE_ANON_KEY)
     settings:

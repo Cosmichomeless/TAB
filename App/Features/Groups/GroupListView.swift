@@ -7,6 +7,7 @@ import TABSync
 struct GroupListView: View {
     @Environment(AppModel.self) private var model
     @State private var showingNewGroup = false
+    @State private var showingImporter = false
     #if SYNC
     @State private var showingAccount = false
     #endif
@@ -43,11 +44,20 @@ struct GroupListView: View {
                 Button("Account", systemImage: "person.crop.circle") { showingAccount = true }
             }
             #endif
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                Menu("More", systemImage: "ellipsis.circle") {
+                    Button("Import group from file", systemImage: "square.and.arrow.down") { showingImporter = true }
+                }
                 Button("New group", systemImage: "plus") { showingNewGroup = true }
             }
         }
         .sheet(isPresented: $showingNewGroup) { NewGroupView() }
+        .fileImporter(isPresented: $showingImporter, allowedContentTypes: [.tabGroup, .tabBackup, .json]) { result in
+            switch result {
+            case .success(let url): model.handleIncoming(url)
+            case .failure: model.incomingError = AppModel.message(for: SnapshotError.unreadable)
+            }
+        }
         #if SYNC
         .sheet(isPresented: $showingAccount) { AccountView() }
         .safeAreaInset(edge: .bottom) { SyncStatusBar() }

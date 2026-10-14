@@ -18,6 +18,7 @@ struct GroupDetailView: View {
     @State private var showingConflicts = false
     #endif
     @State private var showingAddParticipant = false
+    @State private var showingShare = false
     @State private var showingAddExpense = false
     @State private var editing: Expense?
     @State private var pendingDelete: Expense?
@@ -126,6 +127,7 @@ struct GroupDetailView: View {
         .navigationTitle(group.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            Button("Share group", systemImage: "square.and.arrow.up") { showingShare = true }
             Button("Add participant", systemImage: "person.badge.plus") { showingAddParticipant = true }
             Button("Add expense", systemImage: "plus") { showingAddExpense = true }
                 .disabled(members.isEmpty)
@@ -138,6 +140,9 @@ struct GroupDetailView: View {
         }
         .sheet(isPresented: $showingAddParticipant) {
             AddParticipantView(group: group)
+        }
+        .sheet(isPresented: $showingShare) {
+            ShareGroupView(group: group)
         }
         #if SYNC
         .sheet(isPresented: $showingConflicts) {
