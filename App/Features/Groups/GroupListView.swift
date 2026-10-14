@@ -136,7 +136,7 @@ private struct GroupCard: View {
 
     private var subtitle: String {
         guard let summary else { return group.currency.code }
-        let people = summary.memberCount == 1 ? "1 person" : "\(summary.memberCount) people"
+        let people = String(localized: "\(summary.memberCount) people")
         return "\(people) · \(group.currency.format(minorUnits: summary.totalMinor))"
     }
 
@@ -146,7 +146,7 @@ private struct GroupCard: View {
             if summary.myBalanceMinor == 0 {
                 Text("Settled").font(.subheadline.weight(.medium)).foregroundStyle(.secondary)
             } else {
-                Text(summary.myBalanceMinor > 0 ? "You are owed" : "You owe")
+                Text(summary.myBalanceMinor > 0 ? String(localized: "You are owed") : String(localized: "You owe"))
                     .font(.caption).foregroundStyle(.secondary)
                 Text(group.currency.format(minorUnits: abs(summary.myBalanceMinor)))
                     .font(.subheadline.weight(.semibold)).monospacedDigit()
@@ -222,7 +222,7 @@ struct NewGroupView: View {
 
     private func create() {
         guard !name.trimmingCharacters(in: .whitespaces).isEmpty else {
-            message = "Enter a group name."
+            message = String(localized: "Enter a group name.")
             return
         }
         Task {
@@ -230,7 +230,7 @@ struct NewGroupView: View {
                 try await model.createGroup(name: name, currency: currency)
                 dismiss()
             } catch {
-                message = "Enter a group name."
+                message = String(localized: "Enter a group name.")
             }
         }
     }

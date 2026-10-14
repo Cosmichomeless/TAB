@@ -52,6 +52,20 @@ struct SettingsView: View {
                 }
                 Text("Removes every group, expense and your profile from this iPhone. Uninstalling TAB does the same.")
                     .font(.footnote).foregroundStyle(.secondary).padding(.horizontal, 4)
+
+                CardSection("About") {
+                    Link(destination: Self.privacyURL) {
+                        row("Privacy policy", systemImage: "hand.raised")
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("privacyPolicy")
+                    Divider().padding(.leading, 56)
+                    Link(destination: Self.supportURL) {
+                        row("Support", systemImage: "questionmark.circle")
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("support")
+                }
             }
             .padding(16)
         }
@@ -78,6 +92,10 @@ struct SettingsView: View {
             Text("This cannot be undone.")
         }
     }
+
+    /// Opened in Safari by the user; the app itself makes no network request (see docs/privacy.md).
+    private static let privacyURL = URL(string: "https://cosmichomeless.github.io/TAB/privacy/")!
+    private static let supportURL = URL(string: "https://cosmichomeless.github.io/TAB/support/")!
 
     private func row(_ title: LocalizedStringKey, systemImage: String, tint: Color = Theme.accent) -> some View {
         HStack(spacing: 12) {

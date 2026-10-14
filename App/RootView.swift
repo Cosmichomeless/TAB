@@ -88,7 +88,7 @@ struct OnboardingView: View {
             do {
                 try await model.createProfile(name: name)
             } catch {
-                message = "Enter a name to continue."
+                message = String(localized: "Enter a name to continue.")
             }
         }
     }
